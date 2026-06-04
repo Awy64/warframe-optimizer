@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { DropSource, ItemIndexOutput, NodeLevelsOutput, NodeMeta, SkillTier, WfcdNode } from './lib/types.js'
 import { indexBountySources } from './lib/bounty-ev.js'
-import { locationId } from './lib/normalize.js'
+import { locationId, normalizeItemName } from './lib/normalize.js'
 import { buildDropSource, validateIndex } from './lib/sanitize.js'
 import enemyNodeMap from './lib/enemy-node-map.json' with { type: 'json' }
 import nodeMultipliers from './config/node_multipliers.json' with { type: 'json' }
@@ -60,8 +60,9 @@ function tagSource(source: DropSource, itemName: string): DropSource {
 
 function addEntry(index: Record<string, DropSource[]>, itemName: string, source: DropSource | null) {
   if (!source) return
-  if (!index[itemName]) index[itemName] = []
-  index[itemName].push(tagSource(source, itemName))
+  const canonical = normalizeItemName(itemName)
+  if (!index[canonical]) index[canonical] = []
+  index[canonical].push(tagSource(source, canonical))
 }
 
 function buildNodeLevels(wfcdNodes: WfcdNode[]): NodeLevelsOutput {

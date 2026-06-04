@@ -14,6 +14,14 @@ export function ItemSearch() {
     return itemIndex.itemNames
       .filter((name) => name.toLowerCase().includes(q))
       .filter((name) => !objectives.some((o) => o.itemName === name))
+      .sort((a, b) => {
+        const al = a.toLowerCase()
+        const bl = b.toLowerCase()
+        const aStarts = al.startsWith(q) ? 0 : 1
+        const bStarts = bl.startsWith(q) ? 0 : 1
+        if (aStarts !== bStarts) return aStarts - bStarts
+        return al.localeCompare(bl)
+      })
       .slice(0, 12)
   }, [itemIndex, query, objectives])
 
