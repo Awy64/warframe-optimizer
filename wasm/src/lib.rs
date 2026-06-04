@@ -227,3 +227,17 @@ pub fn compute_ranked_nodes(
 
     serde_json::to_string(&ranked).unwrap_or_else(|_| "[]".to_string())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use types::ItemIndex;
+
+    #[test]
+    fn parses_item_index_json_shape() {
+        let json = r#"{"items":{"Vitality":[{"locationId":"Mercury - Lares","dropType":"MissionReward","gameMode":"Survival","rotation":"A","baseChance":10.0,"tadr":2.0}]},"itemNames":["Vitality"]}"#;
+        let index: ItemIndex = serde_json::from_str(json).expect("item index should parse");
+        assert_eq!(index.item_names, vec!["Vitality"]);
+        assert!(index.items.contains_key("Vitality"));
+    }
+}

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useOptimizerStore } from '../stores/optimizerStore'
 import type { RankedNode } from '../types'
-import { computeNodes, ensureWasm } from '../wasm/prapa'
+import { computeNodes, ensureWasm, wasmErrorMessage } from '../wasm/prapa'
 
 export function usePrapaEngine() {
   const objectives = useOptimizerStore((s) => s.objectives)
@@ -38,7 +38,7 @@ export function usePrapaEngine() {
         if (!cancelled) setRankedNodes(nodes)
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'WASM compute failed')
+          setError(wasmErrorMessage(err))
         }
       } finally {
         if (!cancelled) setLoading(false)

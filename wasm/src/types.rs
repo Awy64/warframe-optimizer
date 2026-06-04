@@ -50,6 +50,7 @@ pub struct NodeMeta {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ItemIndex {
     pub items: std::collections::HashMap<String, Vec<DropSource>>,
     pub item_names: Vec<String>,
