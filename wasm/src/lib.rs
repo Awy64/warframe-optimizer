@@ -1,5 +1,6 @@
 mod boosters;
 mod constants;
+mod deserialize;
 mod edge_cases;
 mod kpm;
 mod loot;
@@ -231,13 +232,24 @@ pub fn compute_ranked_nodes(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use types::ItemIndex;
+    use types::{DropSource, ItemIndex};
 
     #[test]
-    fn parses_item_index_json_shape() {
-        let json = r#"{"items":{"Vitality":[{"locationId":"Mercury - Lares","dropType":"MissionReward","gameMode":"Survival","rotation":"A","baseChance":10.0,"tadr":2.0}]},"itemNames":["Vitality"]}"#;
-        let index: ItemIndex = serde_json::from_str(json).expect("item index should parse");
-        assert_eq!(index.item_names, vec!["Vitality"]);
-        assert!(index.items.contains_key("Vitality"));
+    fn parses_drop_source_with_null_chance_as_zero() {
+        let json = r#"{"locationId":"X","dropType":"EnemyDrop","gameMode":"Enemy Drop","rotation":"A","baseChance":null,"tadr":0}"#;
+        let source: DropSource = serde_json::from_str(json).expect("should coerce null to zero");
+        assert_eq!(source.base_chance, 0.0);
+    }
+
+    #[test]
+    fn parses_production_item_index_when_present() {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../public/item_index.json");
+        if !std::path::Path::new(path).exists() {
+            return;
+        }
+        let json = std::fs::read_to_string(path).expect("read item index");
+        let index: ItemIndex = serde_json::from_str(&json).expect("production item index should parse");
+        assert!(!index.item_names.is_empty());
+        assert!(!index.items.is_empty());
     }
 }

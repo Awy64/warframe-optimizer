@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::deserialize::deserialize_null_f64_zero;
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct ArsenalState {
@@ -28,7 +30,9 @@ pub struct DropSource {
     pub drop_type: String,
     pub game_mode: String,
     pub rotation: String,
+    #[serde(deserialize_with = "deserialize_null_f64_zero")]
     pub base_chance: f64,
+    #[serde(deserialize_with = "deserialize_null_f64_zero")]
     pub tadr: f64,
     #[serde(default)]
     pub tags: Vec<String>,

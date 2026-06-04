@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import type { DropSource, ItemIndexOutput, NodeLevelsOutput, NodeMeta, SkillTier, WfcdNode } from './lib/types.js'
 import { indexBountySources } from './lib/bounty-ev.js'
 import { locationId } from './lib/normalize.js'
-import { computeTadr } from './lib/tadr.js'
+import { buildDropSource, validateIndex } from './lib/sanitize.js'
 import enemyNodeMap from './lib/enemy-node-map.json' with { type: 'json' }
 import nodeMultipliers from './config/node_multipliers.json' with { type: 'json' }
 import descendiaItems from './config/descendia_items.json' with { type: 'json' }
@@ -58,7 +58,8 @@ function tagSource(source: DropSource, itemName: string): DropSource {
   return tags.length ? { ...source, tags } : source
 }
 
-function addEntry(index: Record<string, DropSource[]>, itemName: string, source: DropSource) {
+function addEntry(index: Record<string, DropSource[]>, itemName: string, source: DropSource | null) {
+  if (!source) return
   if (!index[itemName]) index[itemName] = []
   index[itemName].push(tagSource(source, itemName))
 }
@@ -171,14 +172,13 @@ async function main() {
       for (const [rotation, rewards] of Object.entries(node.rewards ?? {})) {
         if (!Array.isArray(rewards)) continue
         for (const reward of rewards) {
-          addEntry(index, reward.itemName, {
+          addEntry(index, reward.itemName, buildDropSource({
             locationId: locationId(planet, nodeName),
             dropType: 'MissionReward',
             gameMode: node.gameMode,
             rotation,
             baseChance: reward.chance,
-            tadr: computeTadr(reward.chance, node.gameMode, rotation),
-          })
+          }))
         }
       }
     }
@@ -212,42 +212,39 @@ async function main() {
     for (const enemy of entry.enemies ?? []) {
       if (!enemy.chance) continue
       const locId = (enemyNodeMap as Record<string, string>)[enemy.enemyName] ?? `Enemy - ${enemy.enemyName}`
-      addEntry(index, entry.modName, {
+      addEntry(index, entry.modName, buildDropSource({
         locationId: locId,
         dropType: 'ModLocation',
         gameMode: 'Enemy Drop',
         rotation: 'A',
         baseChance: enemy.chance,
-        tadr: computeTadr(enemy.chance, 'Enemy Drop', 'A'),
-      })
+      }))
     }
   }
 
   for (const entry of (resourceByAvatar as { resourceByAvatar: Array<{ source: string; items: { item: string; chance: number }[] }> }).resourceByAvatar) {
     const locId = (enemyNodeMap as Record<string, string>)[entry.source] ?? `Enemy - ${entry.source}`
     for (const item of entry.items) {
-      addEntry(index, item.item, {
+      addEntry(index, item.item, buildDropSource({
         locationId: locId,
         dropType: 'EnemyDrop',
         gameMode: 'Enemy Drop',
         rotation: 'A',
         baseChance: item.chance,
-        tadr: computeTadr(item.chance, 'Enemy Drop', 'A'),
-      })
+      }))
     }
   }
 
   for (const table of (enemyBlueprintTables as { enemyBlueprintTables: Array<{ enemyName: string; items: { itemName: string; chance: number }[] }> }).enemyBlueprintTables ?? []) {
     const locId = (enemyNodeMap as Record<string, string>)[table.enemyName] ?? `Enemy - ${table.enemyName}`
     for (const item of table.items ?? []) {
-      addEntry(index, item.itemName, {
+      addEntry(index, item.itemName, buildDropSource({
         locationId: locId,
         dropType: 'EnemyDrop',
         gameMode: 'Enemy Drop',
         rotation: 'A',
         baseChance: item.chance,
-        tadr: computeTadr(item.chance, 'Enemy Drop', 'A'),
-      })
+      }))
     }
   }
 
@@ -255,56 +252,53 @@ async function main() {
     for (const enemy of entry.enemies ?? []) {
       if (!enemy.chance) continue
       const locId = (enemyNodeMap as Record<string, string>)[enemy.enemyName] ?? `Enemy - ${enemy.enemyName}`
-      addEntry(index, entry.itemName, {
+      addEntry(index, entry.itemName, buildDropSource({
         locationId: locId,
         dropType: 'Blueprint',
         gameMode: 'Enemy Drop',
         rotation: 'A',
         baseChance: enemy.chance,
-        tadr: computeTadr(enemy.chance, 'Enemy Drop', 'A'),
-      })
+      }))
     }
   }
 
   const syndicateRoot = syndicates as { syndicates: Record<string, Array<{ item: string; chance: number }>> }
   for (const [name, rewards] of Object.entries(syndicateRoot.syndicates ?? {})) {
     for (const reward of rewards) {
-      addEntry(index, reward.item, {
+      addEntry(index, reward.item, buildDropSource({
         locationId: `Syndicate - ${name}`,
         dropType: 'Syndicate',
         gameMode: 'Syndicate',
         rotation: 'Full Clear',
         baseChance: reward.chance,
-        tadr: reward.chance / 5,
-      })
+      }))
     }
   }
 
   for (const entry of (miscItems as { miscItems: Array<{ enemyName: string; items: { itemName: string; chance: number }[] }> }).miscItems ?? []) {
     const locId = (enemyNodeMap as Record<string, string>)[entry.enemyName] ?? `Boss - ${entry.enemyName}`
     for (const item of entry.items ?? []) {
-      addEntry(index, item.itemName, {
+      addEntry(index, item.itemName, buildDropSource({
         locationId: locId,
         dropType: 'EnemyDrop',
         gameMode: 'Boss',
         rotation: 'A',
         baseChance: item.chance,
-        tadr: computeTadr(item.chance, 'Boss', 'A'),
-      })
+      }))
     }
   }
 
   for (const override of resourceFarmOverrides as Array<{ itemName: string; locationId: string; gameMode: string; baseChance: number; rotation: string }>) {
-    addEntry(index, override.itemName, {
+    addEntry(index, override.itemName, buildDropSource({
       locationId: override.locationId,
       dropType: 'EnemyDrop',
       gameMode: override.gameMode,
       rotation: override.rotation,
       baseChance: override.baseChance,
-      tadr: computeTadr(override.baseChance, override.gameMode, override.rotation),
-    })
+    }))
   }
 
+  validateIndex(index)
   const itemNames = Object.keys(index).sort((a, b) => a.localeCompare(b))
   const itemIndex: ItemIndexOutput = { items: index, itemNames }
   const nodeLevels = buildNodeLevels(wfcdNodes)
