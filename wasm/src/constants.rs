@@ -1,0 +1,14 @@
+pub const KPM_BASE: f32 = 60.0;
+pub const KPM_SKILL_SCALE: f32 = 80.0;
+pub const VINQUIBUS_WEAPON_MULT: f32 = 1.25;
+pub const BOOSTER_ACTIVE: f32 = 2.0;
+pub const BOOSTER_INACTIVE: f32 = 1.0;
+pub const FRICTION_COEFF: f32 = 0.05;
+pub const FRICTION_EXPONENT: f32 = 1.5;
+pub const COMFORT_LEVEL_SCALE: f32 = 250.0;
+pub const SYNERGY_COEFF: f32 = 0.15;
+pub const HOLLVANIA_Y_BONUS: f32 = 2.0;
+pub const OMNIAC_COST_MULT: f32 = 0.5;
+pub const DESCENDIA_SKILL_WARN: f32 = 0.8;
+pub const EXPERT_SKILL_GATE: f32 = 0.7;
+pub const INTERMEDIATE_SKILL_GATE: f32 = 0.3;

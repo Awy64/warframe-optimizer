@@ -1,0 +1,30 @@
+[
+  {
+    "itemName": "Orokin Cell",
+    "locationId": "Ceres - Gabii",
+    "gameMode": "Survival",
+    "baseChance": 12.5,
+    "rotation": "A"
+  },
+  {
+    "itemName": "Orokin Cell",
+    "locationId": "Eris - Akkad",
+    "gameMode": "Defense",
+    "baseChance": 12.5,
+    "rotation": "A"
+  },
+  {
+    "itemName": "Plastids",
+    "locationId": "Ceres - Gabii",
+    "gameMode": "Survival",
+    "baseChance": 20.0,
+    "rotation": "A"
+  },
+  {
+    "itemName": "Plastids",
+    "locationId": "Saturn - Helene",
+    "gameMode": "Defense",
+    "baseChance": 20.0,
+    "rotation": "A"
+  }
+]
