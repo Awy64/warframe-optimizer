@@ -27,7 +27,7 @@ export default defineConfig({
         display: 'standalone',
         icons: [
           {
-            src: '/favicon.svg',
+            src: 'favicon.svg',
             sizes: 'any',
             type: 'image/svg+xml',
           },
@@ -38,7 +38,7 @@ export default defineConfig({
         maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
         runtimeCaching: [
           {
-            urlPattern: /\/item_index\.json$/,
+            urlPattern: /\/warframe-optimizer\/item_index\.json$|^\/item_index\.json$/,
             handler: 'CacheFirst',
             options: {
               cacheName: 'item-index',
@@ -46,7 +46,7 @@ export default defineConfig({
             },
           },
           {
-            urlPattern: /\/node_levels\.json$/,
+            urlPattern: /\/warframe-optimizer\/node_levels\.json$|^\/node_levels\.json$/,
             handler: 'CacheFirst',
             options: {
               cacheName: 'node-levels',

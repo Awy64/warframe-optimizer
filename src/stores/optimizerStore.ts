@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { assetUrl } from '../lib/assets'
 import type { ArsenalState, ItemIndex, Objective } from '../types'
 import { DEFAULT_ARSENAL } from '../types'
 
@@ -56,7 +57,7 @@ export const useOptimizerStore = create<OptimizerState>((set, get) => ({
     if (get().itemIndex) return
     set({ itemIndexLoading: true, itemIndexError: null })
     try {
-      const res = await fetch('/item_index.json')
+      const res = await fetch(assetUrl('item_index.json'))
       if (!res.ok) throw new Error(`Failed to load item index (${res.status})`)
       const data = (await res.json()) as ItemIndex
       set({ itemIndex: data, itemIndexLoading: false })
