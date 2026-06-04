@@ -16,7 +16,7 @@ export async function ensureWasm(): Promise<void> {
   if (!initPromise) {
     initPromise = (async () => {
       try {
-        await init()
+        await init(assetUrl('warframe_prapa_wasm_bg.wasm'))
         const [itemRes, nodeRes] = await Promise.all([
           fetch(assetUrl('item_index.json')),
           fetch(assetUrl('node_levels.json')),

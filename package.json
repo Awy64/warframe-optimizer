@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "build:wasm": "cd wasm && wasm-pack build --target web --out-dir pkg",
+    "build:wasm": "cd wasm && wasm-pack build --target web --out-dir pkg && cp pkg/warframe_prapa_wasm_bg.wasm ../public/warframe_prapa_wasm_bg.wasm",
     "build:index": "tsx scripts/build-index.ts",
     "build:all": "npm run build:index && npm run build:wasm && npm run build",
     "lint": "eslint .",

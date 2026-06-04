@@ -5,6 +5,7 @@ dist-ssr
 *.local
 dev-dist
 wasm/target
+public/warframe_prapa_wasm_bg.wasm
 
 # Editor directories and files
 .vscode/*

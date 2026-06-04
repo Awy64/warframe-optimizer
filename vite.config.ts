@@ -17,7 +17,7 @@ export default defineConfig({
     topLevelAwait(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['item_index.json', 'node_levels.json'],
+      includeAssets: ['item_index.json', 'node_levels.json', 'warframe_prapa_wasm_bg.wasm'],
       manifest: {
         name: 'PRAPA Warframe Yield Optimizer',
         short_name: 'PRAPA',
@@ -34,7 +34,8 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,wasm}'],
+        globPatterns: ['**/*.{js,css,html,svg}'],
+        navigateFallbackDenylist: [/\.wasm$/, /\/assets\//],
         maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
         runtimeCaching: [
           {
