@@ -1,6 +1,6 @@
 import init, { init_engine, compute_ranked_nodes } from '../../wasm/pkg/warframe_prapa_wasm'
-import { assetUrl } from '../lib/assets'
-import type { RankedNode } from '../types'
+import { assetUrl, dataAssetUrl } from '../lib/assets'
+import type { PrapaEngineResult, RankedNode } from '../types'
 
 let wasmReady = false
 let initPromise: Promise<void> | null = null
@@ -18,8 +18,8 @@ export async function ensureWasm(): Promise<void> {
       try {
         await init(assetUrl('warframe_prapa_wasm_bg.wasm'))
         const [itemRes, nodeRes] = await Promise.all([
-          fetch(assetUrl('item_index.json')),
-          fetch(assetUrl('node_levels.json')),
+          fetch(dataAssetUrl('item_index.json')),
+          fetch(dataAssetUrl('node_levels.json')),
         ])
         if (!itemRes.ok) {
           throw new Error(`Failed to load item index (${itemRes.status})`)
@@ -40,13 +40,25 @@ export async function ensureWasm(): Promise<void> {
   await initPromise
 }
 
+export function computeEngineResult(
+  objectivesJson: string,
+  skill: number,
+  arsenalJson: string,
+): PrapaEngineResult {
+  const result = compute_ranked_nodes(objectivesJson, skill, arsenalJson, Date.now())
+  const parsed = JSON.parse(result) as PrapaEngineResult | RankedNode[]
+  if (Array.isArray(parsed)) {
+    return { rankedNodes: parsed, pathingFailures: [] }
+  }
+  return parsed
+}
+
 export function computeNodes(
   objectivesJson: string,
   skill: number,
   arsenalJson: string,
 ): RankedNode[] {
-  const result = compute_ranked_nodes(objectivesJson, skill, arsenalJson, Date.now())
-  return JSON.parse(result) as RankedNode[]
+  return computeEngineResult(objectivesJson, skill, arsenalJson).rankedNodes
 }
 
 export { wasmErrorMessage }

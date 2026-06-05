@@ -1,0 +1,36 @@
+{
+  "archetypes": {
+    "UNGATED_ASSASSINATION": 2.5,
+    "PHASE_GATED_ASSASSINATION": 5.0,
+    "PUZZLE_GATED_ASSASSINATION": 8.0,
+    "FIELD_INVADER": 8.0
+  },
+  "bossMappings": {
+    "Corrupted Vor": "FIELD_INVADER",
+    "Captain Vor": "UNGATED_ASSASSINATION",
+    "Shadow Stalker": "FIELD_INVADER",
+    "The Sergeant": "UNGATED_ASSASSINATION",
+    "Phorid": "UNGATED_ASSASSINATION",
+    "Ambulas": "PUZZLE_GATED_ASSASSINATION",
+    "Kela De Thaym": "PUZZLE_GATED_ASSASSINATION",
+    "Mutalist Alad V": "PUZZLE_GATED_ASSASSINATION",
+    "Lephantis": "PUZZLE_GATED_ASSASSINATION",
+    "Jordas Golem": "PUZZLE_GATED_ASSASSINATION",
+    "Councilor Vay Hek": "PHASE_GATED_ASSASSINATION",
+    "General Sargas Ruk": "PHASE_GATED_ASSASSINATION",
+    "Lt Lech Kril": "PHASE_GATED_ASSASSINATION",
+    "Jackal": "PHASE_GATED_ASSASSINATION",
+    "Hyena": "UNGATED_ASSASSINATION",
+    "Raptor": "UNGATED_ASSASSINATION",
+    "Zanuka": "UNGATED_ASSASSINATION",
+    "Demolyst": "UNGATED_ASSASSINATION",
+    "Amalgam": "UNGATED_ASSASSINATION",
+    "Conculyst": "UNGATED_ASSASSINATION",
+    "Battalyst": "UNGATED_ASSASSINATION",
+    "Aerolyst": "UNGATED_ASSASSINATION",
+    "Symbilyst": "UNGATED_ASSASSINATION",
+    "Ortholyst": "UNGATED_ASSASSINATION",
+    "Summulyst": "UNGATED_ASSASSINATION",
+    "Artificer": "UNGATED_ASSASSINATION"
+  }
+}

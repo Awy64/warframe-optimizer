@@ -33,6 +33,7 @@ jobs:
       - run: npm ci
       - run: npm run build:index
       - run: npm run build:wasm
+      - run: npm run test:engine
       - run: npm run build
         env:
           GITHUB_ACTIONS: true

@@ -16,7 +16,11 @@ export interface DropSource {
   rotation: string
   baseChance: number
   tadr: number
+  /** Build-time TTK overlay from data/telemetry.json (minutes per kill). */
+  timeGateMinutes?: number
   tags?: string[]
+  spawnIntervalMinutes?: number
+  dropYield?: number
 }
 
 export type SkillTier = 'baseline' | 'intermediate' | 'expert'
@@ -36,6 +40,7 @@ export interface NodeMeta {
 export interface WfcdNode {
   name: string
   systemName: string
+  missionIndex: number
   minEnemyLevel?: number
   maxEnemyLevel?: number
 }

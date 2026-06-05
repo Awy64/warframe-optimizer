@@ -17,7 +17,7 @@ export default defineConfig({
     topLevelAwait(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['item_index.json', 'node_levels.json', 'warframe_prapa_wasm_bg.wasm'],
+      includeAssets: ['item_index.json', 'node_levels.json', 'data_version.txt', 'warframe_prapa_wasm_bg.wasm'],
       manifest: {
         name: 'PRAPA Warframe Yield Optimizer',
         short_name: 'PRAPA',
@@ -39,19 +39,21 @@ export default defineConfig({
         maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
         runtimeCaching: [
           {
-            urlPattern: /\/warframe-optimizer\/item_index\.json$|^\/item_index\.json$/,
-            handler: 'CacheFirst',
+            urlPattern: /\/warframe-optimizer\/item_index\.json(\?.*)?$|^\/item_index\.json(\?.*)?$/,
+            handler: 'NetworkFirst',
             options: {
-              cacheName: 'item-index',
-              expiration: { maxEntries: 1, maxAgeSeconds: 60 * 60 * 24 * 7 },
+              cacheName: 'item-index-v2',
+              networkTimeoutSeconds: 5,
+              expiration: { maxEntries: 2, maxAgeSeconds: 60 * 60 * 24 },
             },
           },
           {
-            urlPattern: /\/warframe-optimizer\/node_levels\.json$|^\/node_levels\.json$/,
-            handler: 'CacheFirst',
+            urlPattern: /\/warframe-optimizer\/node_levels\.json(\?.*)?$|^\/node_levels\.json(\?.*)?$/,
+            handler: 'NetworkFirst',
             options: {
-              cacheName: 'node-levels',
-              expiration: { maxEntries: 1, maxAgeSeconds: 60 * 60 * 24 * 7 },
+              cacheName: 'node-levels-v2',
+              networkTimeoutSeconds: 5,
+              expiration: { maxEntries: 2, maxAgeSeconds: 60 * 60 * 24 },
             },
           },
         ],

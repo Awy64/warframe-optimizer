@@ -77,6 +77,18 @@ export function ArsenalGrid() {
           onChange={set('resourceBoosterActive')}
         />
       </Section>
+      <Section title="Quest & Mode">
+        <Checkbox
+          label="Angels of the Zariman"
+          checked={arsenal.hasZarimanUnlocked}
+          onChange={set('hasZarimanUnlocked')}
+        />
+        <Checkbox
+          label="Steel Path"
+          checked={arsenal.steelPathActive}
+          onChange={set('steelPathActive')}
+        />
+      </Section>
     </div>
   )
 }

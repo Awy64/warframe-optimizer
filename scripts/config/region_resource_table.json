@@ -1,0 +1,117 @@
+{
+  "Mercury": [
+    { "itemName": "Morphics", "rarity": "Rare" },
+    { "itemName": "Ferrite", "rarity": "Common" },
+    { "itemName": "Polymer Bundle", "rarity": "Uncommon" },
+    { "itemName": "Detonite Ampule", "rarity": "Uncommon" }
+  ],
+  "Venus": [
+    { "itemName": "Alloy Plate", "rarity": "Common" },
+    { "itemName": "Polymer Bundle", "rarity": "Uncommon" },
+    { "itemName": "Circuits", "rarity": "Uncommon" },
+    { "itemName": "Fieldron Sample", "rarity": "Uncommon" }
+  ],
+  "Earth": [
+    { "itemName": "Ferrite", "rarity": "Common" },
+    { "itemName": "Rubedo", "rarity": "Uncommon" },
+    { "itemName": "Neurodes", "rarity": "Rare" },
+    { "itemName": "Detonite Ampule", "rarity": "Uncommon" }
+  ],
+  "Lua": [
+    { "itemName": "Ferrite", "rarity": "Common" },
+    { "itemName": "Rubedo", "rarity": "Uncommon" },
+    { "itemName": "Neurodes", "rarity": "Rare" },
+    { "itemName": "Detonite Ampule", "rarity": "Uncommon" }
+  ],
+  "Mars": [
+    { "itemName": "Morphics", "rarity": "Rare" },
+    { "itemName": "Salvage", "rarity": "Common" },
+    { "itemName": "Gallium", "rarity": "Rare" },
+    { "itemName": "Fieldron Sample", "rarity": "Uncommon" }
+  ],
+  "Deimos": [
+    { "itemName": "Nano Spores", "rarity": "Common" },
+    { "itemName": "Mutagen Sample", "rarity": "Uncommon" },
+    { "itemName": "Orokin Cell", "rarity": "Rare" },
+    { "itemName": "Neurodes", "rarity": "Rare" }
+  ],
+  "Phobos": [
+    { "itemName": "Rubedo", "rarity": "Uncommon" },
+    { "itemName": "Morphics", "rarity": "Rare" },
+    { "itemName": "Plastids", "rarity": "Uncommon" },
+    { "itemName": "Alloy Plate", "rarity": "Common" }
+  ],
+  "Ceres": [
+    { "itemName": "Alloy Plate", "rarity": "Common" },
+    { "itemName": "Circuits", "rarity": "Uncommon" },
+    { "itemName": "Orokin Cell", "rarity": "Rare" },
+    { "itemName": "Detonite Ampule", "rarity": "Uncommon" }
+  ],
+  "Jupiter": [
+    { "itemName": "Salvage", "rarity": "Common" },
+    { "itemName": "Hexenon", "rarity": "Uncommon" },
+    { "itemName": "Neural Sensors", "rarity": "Rare" },
+    { "itemName": "Alloy Plate", "rarity": "Common" }
+  ],
+  "Europa": [
+    { "itemName": "Morphics", "rarity": "Rare" },
+    { "itemName": "Rubedo", "rarity": "Uncommon" },
+    { "itemName": "Fieldron Sample", "rarity": "Uncommon" },
+    { "itemName": "Control Module", "rarity": "Rare" }
+  ],
+  "Saturn": [
+    { "itemName": "Nano Spores", "rarity": "Common" },
+    { "itemName": "Plastids", "rarity": "Uncommon" },
+    { "itemName": "Orokin Cell", "rarity": "Rare" },
+    { "itemName": "Detonite Ampule", "rarity": "Uncommon" }
+  ],
+  "Uranus": [
+    { "itemName": "Polymer Bundle", "rarity": "Uncommon" },
+    { "itemName": "Plastids", "rarity": "Uncommon" },
+    { "itemName": "Gallium", "rarity": "Rare" },
+    { "itemName": "Detonite Ampule", "rarity": "Uncommon" }
+  ],
+  "Neptune": [
+    { "itemName": "Nano Spores", "rarity": "Common" },
+    { "itemName": "Ferrite", "rarity": "Common" },
+    { "itemName": "Control Module", "rarity": "Rare" },
+    { "itemName": "Fieldron Sample", "rarity": "Uncommon" }
+  ],
+  "Pluto": [
+    { "itemName": "Alloy Plate", "rarity": "Common" },
+    { "itemName": "Rubedo", "rarity": "Uncommon" },
+    { "itemName": "Plastids", "rarity": "Uncommon" },
+    { "itemName": "Morphics", "rarity": "Rare" },
+    { "itemName": "Fieldron Sample", "rarity": "Uncommon" }
+  ],
+  "Sedna": [
+    { "itemName": "Rubedo", "rarity": "Uncommon" },
+    { "itemName": "Alloy Plate", "rarity": "Common" },
+    { "itemName": "Salvage", "rarity": "Common" },
+    { "itemName": "Detonite Ampule", "rarity": "Uncommon" }
+  ],
+  "Eris": [
+    { "itemName": "Nano Spores", "rarity": "Common" },
+    { "itemName": "Plastids", "rarity": "Uncommon" },
+    { "itemName": "Neurodes", "rarity": "Rare" },
+    { "itemName": "Mutagen Sample", "rarity": "Uncommon" }
+  ],
+  "Kuva Fortress": [
+    { "itemName": "Salvage", "rarity": "Common" },
+    { "itemName": "Circuits", "rarity": "Uncommon" },
+    { "itemName": "Neural Sensors", "rarity": "Rare" },
+    { "itemName": "Detonite Ampule", "rarity": "Uncommon" }
+  ],
+  "Void": [
+    { "itemName": "Ferrite", "rarity": "Common" },
+    { "itemName": "Rubedo", "rarity": "Uncommon" },
+    { "itemName": "Argon Crystal", "rarity": "Rare" },
+    { "itemName": "Control Module", "rarity": "Rare" }
+  ],
+  "Zariman": [
+    { "itemName": "Alloy Plate", "rarity": "Common" },
+    { "itemName": "Ferrite", "rarity": "Common" },
+    { "itemName": "Voidgel Orb", "rarity": "Uncommon" },
+    { "itemName": "Entrati Lanthorn", "rarity": "Rare" }
+  ]
+}

@@ -2,17 +2,23 @@ use crate::constants::{BOOSTER_ACTIVE, BOOSTER_INACTIVE};
 use crate::types::ArsenalState;
 
 pub fn calculate_boosters(arsenal: &ArsenalState) -> f32 {
-    let b_drop = if arsenal.drop_chance_booster_active {
+    calculate_drop_booster(arsenal) * calculate_resource_booster(arsenal)
+}
+
+pub fn calculate_drop_booster(arsenal: &ArsenalState) -> f32 {
+    if arsenal.drop_chance_booster_active {
         BOOSTER_ACTIVE
     } else {
         BOOSTER_INACTIVE
-    };
-    let b_resource = if arsenal.resource_booster_active {
+    }
+}
+
+pub fn calculate_resource_booster(arsenal: &ArsenalState) -> f32 {
+    if arsenal.resource_booster_active {
         BOOSTER_ACTIVE
     } else {
         BOOSTER_INACTIVE
-    };
-    b_drop * b_resource
+    }
 }
 
 #[cfg(test)]

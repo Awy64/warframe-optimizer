@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useOptimizerStore } from '../stores/optimizerStore'
 import type { RankedNode } from '../types'
-import { computeNodes, ensureWasm, wasmErrorMessage } from '../wasm/prapa'
+import { computeEngineResult, ensureWasm, wasmErrorMessage } from '../wasm/prapa'
 
 export function usePrapaEngine() {
   const objectives = useOptimizerStore((s) => s.objectives)
@@ -9,6 +9,7 @@ export function usePrapaEngine() {
   const arsenal = useOptimizerStore((s) => s.arsenal)
 
   const [rankedNodes, setRankedNodes] = useState<RankedNode[]>([])
+  const [pathingFailures, setPathingFailures] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -20,6 +21,7 @@ export function usePrapaEngine() {
   useEffect(() => {
     if (objectives.length === 0) {
       setRankedNodes([])
+      setPathingFailures([])
       return
     }
 
@@ -30,12 +32,15 @@ export function usePrapaEngine() {
       try {
         await ensureWasm()
         if (cancelled) return
-        const nodes = computeNodes(
+        const result = computeEngineResult(
           JSON.stringify(objectives),
           skillCoefficient,
           JSON.stringify(arsenal),
         )
-        if (!cancelled) setRankedNodes(nodes)
+        if (!cancelled) {
+          setRankedNodes(result.rankedNodes)
+          setPathingFailures(result.pathingFailures)
+        }
       } catch (err) {
         if (!cancelled) {
           setError(wasmErrorMessage(err))
@@ -51,5 +56,5 @@ export function usePrapaEngine() {
     }
   }, [inputKey, objectives, skillCoefficient, arsenal])
 
-  return { rankedNodes, loading, error }
+  return { rankedNodes, pathingFailures, loading, error }
 }

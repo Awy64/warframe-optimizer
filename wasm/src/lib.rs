@@ -1,26 +1,28 @@
 mod boosters;
 mod constants;
 mod deserialize;
+mod drop_type;
 mod edge_cases;
 mod kpm;
 mod loot;
 mod prapa;
 mod types;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use wasm_bindgen::prelude::*;
 
-use boosters::calculate_boosters;
-use edge_cases::descendia::{descendia_survivability_warning, synergy_multiplier, vinquibus_warning};
+use edge_cases::access::{blocked_by_zariman, is_source_accessible};
+use edge_cases::async_gate::{async_night_cycle_warning, ASYNC_NIGHT_WARNING};
+use edge_cases::descendia::{descendia_survivability_warning, vinquibus_warning};
 use edge_cases::hollvania::hollvania_yield_bonus;
 use edge_cases::omnia::apply_omnia_cost_multiplier;
-use kpm::calculate_kpm;
+use kpm::reference_horde_kpm;
 use loot::calculate_m_loot;
-use prapa::{calculate_prapa_cost, skill_allows_tier};
+use prapa::{calculate_etc_cost, calculate_item_yield, skill_allows_tier};
 use types::{
     ArsenalState, DropSource, ItemIndex, MatchedItem, NodeLevelsFile, NodeMeta, Objective,
-    RankedNode,
+    PrapaEngineResult, RankedNode,
 };
 
 static mut ITEM_INDEX: Option<ItemIndex> = None;
@@ -50,6 +52,167 @@ pub fn init_engine(item_index_json: &str, node_levels_json: &str) -> Result<(), 
     Ok(())
 }
 
+fn item_has_eximus_tag(sources: &[DropSource]) -> bool {
+    sources
+        .iter()
+        .any(|s| s.tags.contains(&"eximus-loot".to_string()))
+}
+
+fn resolve_node_meta(location_id: &str, fallback_game_mode: &str, nodes: &NodeLevelsFile) -> NodeMeta {
+    nodes.nodes.get(location_id).cloned().unwrap_or(NodeMeta {
+        location_id: location_id.to_string(),
+        planet: "Unknown".to_string(),
+        node_name: location_id.to_string(),
+        game_mode: fallback_game_mode.to_string(),
+        min_enemy_level: 1.0,
+        max_enemy_level: 30.0,
+        m_node: 1.0,
+        skill_tier: "baseline".to_string(),
+        tags: vec![],
+    })
+}
+
+fn detect_pathing_failures(
+    objectives: &[Objective],
+    index: &ItemIndex,
+    nodes: &NodeLevelsFile,
+    arsenal: &ArsenalState,
+    global_max: &HashMap<String, f32>,
+) -> Vec<String> {
+    let mut failures = Vec::new();
+
+    for objective in objectives {
+        let max_y = global_max.get(&objective.item_name).copied().unwrap_or(0.0);
+        if max_y > 0.0 {
+            continue;
+        }
+
+        let Some(sources) = index.items.get(&objective.item_name) else {
+            continue;
+        };
+
+        let mut any_accessible = false;
+        let mut zariman_blocked = false;
+
+        for source in sources {
+            let meta = resolve_node_meta(&source.location_id, &source.game_mode, nodes);
+            if is_source_accessible(source, &meta, arsenal, &objective.item_name) {
+                any_accessible = true;
+                break;
+            }
+            if blocked_by_zariman(source, &meta) {
+                zariman_blocked = true;
+            }
+        }
+
+        if !any_accessible && zariman_blocked {
+            failures.push(
+                "Pathing Failed: Target requires completion of 'Angels of the Zariman' quest."
+                    .to_string(),
+            );
+        }
+    }
+
+    failures
+}
+
+fn sum_item_yield_at_location(
+    sources: &[DropSource],
+    location_id: &str,
+    meta: &NodeMeta,
+    m_loot: f32,
+    skill: f32,
+    arsenal: &ArsenalState,
+    objective_has_eximus: bool,
+    timestamp_ms: f64,
+) -> f32 {
+    let mut y = 0.0_f32;
+    for source in sources {
+        if source.location_id != location_id {
+            continue;
+        }
+        y += calculate_item_yield(
+            source,
+            meta.m_node as f32,
+            m_loot,
+            skill,
+            arsenal,
+        );
+    }
+
+    if y > 0.0 {
+        y += hollvania_yield_bonus(
+            timestamp_ms,
+            meta.tags.contains(&"hollvania".to_string()),
+            objective_has_eximus && item_has_eximus_tag(sources),
+        );
+    }
+
+    y
+}
+
+/// Pass 1: fastest isolated yield per cart item across all indexed nodes.
+fn compute_global_max_yields(
+    objectives: &[Objective],
+    index: &ItemIndex,
+    nodes: &NodeLevelsFile,
+    skill: f64,
+    m_loot: f32,
+    arsenal: &ArsenalState,
+    objective_has_eximus: bool,
+    timestamp_ms: f64,
+) -> HashMap<String, f32> {
+    let mut global_max = HashMap::new();
+
+    for objective in objectives {
+        let Some(sources) = index.items.get(&objective.item_name) else {
+            global_max.insert(objective.item_name.clone(), 0.0);
+            continue;
+        };
+
+        let mut by_location: HashMap<String, Vec<&DropSource>> = HashMap::new();
+        for source in sources {
+            by_location
+                .entry(source.location_id.clone())
+                .or_default()
+                .push(source);
+        }
+
+        let mut best = 0.0_f32;
+        for (location_id, loc_sources) in by_location {
+            let meta = resolve_node_meta(&location_id, &loc_sources[0].game_mode, nodes);
+
+            if !skill_allows_tier(skill, &meta.skill_tier) {
+                continue;
+            }
+
+            let owned: Vec<DropSource> = loc_sources
+                .into_iter()
+                .filter(|s| is_source_accessible(s, &meta, arsenal, &objective.item_name))
+                .cloned()
+                .collect();
+            if owned.is_empty() {
+                continue;
+            }
+            let y = sum_item_yield_at_location(
+                &owned,
+                &location_id,
+                &meta,
+                m_loot,
+                skill as f32,
+                arsenal,
+                objective_has_eximus,
+                timestamp_ms,
+            );
+            best = best.max(y);
+        }
+
+        global_max.insert(objective.item_name.clone(), best);
+    }
+
+    global_max
+}
+
 #[wasm_bindgen]
 pub fn compute_ranked_nodes(
     objectives_json: &str,
@@ -66,15 +229,14 @@ pub fn compute_ranked_nodes(
 
     let index = item_index();
     let nodes = node_levels();
-    let m_loot = calculate_m_loot(&arsenal) as f64;
-    let kpm = calculate_kpm(skill as f32, &arsenal) as f64;
-    let boosters = calculate_boosters(&arsenal) as f64;
+    let m_loot = calculate_m_loot(&arsenal) as f32;
+    let kpm = reference_horde_kpm(skill as f32, &arsenal) as f64;
 
     let objective_has_eximus = objectives.iter().any(|o| {
         index
             .items
             .get(&o.item_name)
-            .map(|sources| sources.iter().any(|s| s.tags.contains(&"eximus-loot".to_string())))
+            .map(|sources| item_has_eximus_tag(sources))
             .unwrap_or(false)
             || o.item_name.contains("Riven")
     });
@@ -104,11 +266,26 @@ pub fn compute_ranked_nodes(
             .unwrap_or(false)
     });
 
+    let global_max_yields = compute_global_max_yields(
+        &objectives,
+        index,
+        nodes,
+        skill,
+        m_loot,
+        &arsenal,
+        objective_has_eximus,
+        timestamp_ms,
+    );
+
     let mut node_matches: HashMap<String, Vec<(Objective, DropSource)>> = HashMap::new();
 
     for objective in &objectives {
         if let Some(sources) = index.items.get(&objective.item_name) {
             for source in sources {
+                let meta = resolve_node_meta(&source.location_id, &source.game_mode, nodes);
+                if !is_source_accessible(source, &meta, &arsenal, &objective.item_name) {
+                    continue;
+                }
                 node_matches
                     .entry(source.location_id.clone())
                     .or_default()
@@ -117,84 +294,107 @@ pub fn compute_ranked_nodes(
         }
     }
 
+    let pathing_failures = detect_pathing_failures(
+        &objectives,
+        index,
+        nodes,
+        &arsenal,
+        &global_max_yields,
+    );
+
     let mut ranked: Vec<RankedNode> = Vec::new();
 
     for (location_id, matches) in node_matches {
-        let meta: NodeMeta = nodes.nodes.get(&location_id).cloned().unwrap_or(NodeMeta {
-            location_id: location_id.clone(),
-            planet: "Unknown".to_string(),
-            node_name: location_id.clone(),
-            game_mode: matches[0].1.game_mode.clone(),
-            min_enemy_level: 1.0,
-            max_enemy_level: 30.0,
-            m_node: 1.0,
-            skill_tier: "baseline".to_string(),
-            tags: vec![],
-        });
+        let meta = resolve_node_meta(&location_id, &matches[0].1.game_mode, nodes);
 
         if !skill_allows_tier(skill, &meta.skill_tier) {
             continue;
         }
 
-        let unique_items: std::collections::HashSet<String> = matches
-            .iter()
-            .map(|(o, _)| o.item_name.clone())
-            .collect();
-        let match_count = unique_items.len();
-
         let has_descendia_item = matches.iter().any(|(_, s)| {
             s.tags.contains(&"descendia-exclusive".to_string())
         }) || objective_has_descendia;
 
-        let s_m = synergy_multiplier(match_count, has_descendia_item) as f32;
-
         let mut matched_items: Vec<MatchedItem> = Vec::new();
-        let mut base_drop_sum = 0.0_f32;
+        let mut seen_sources: HashSet<String> = HashSet::new();
+        let mut yields_at_node: HashMap<String, f32> = HashMap::new();
 
         for (objective, source) in &matches {
-            let p_base = (source.tadr / 100.0) as f32;
-            let y_item = calculate_kpm(skill as f32, &arsenal)
-                * p_base
-                * meta.m_node as f32
-                * m_loot as f32
-                * boosters as f32;
+            let dedupe_key = format!(
+                "{}|{:?}|{}|{}",
+                objective.item_name, source.drop_type, source.rotation, source.base_chance
+            );
+            if !seen_sources.insert(dedupe_key) {
+                continue;
+            }
 
-            base_drop_sum += p_base;
-            matched_items.push(MatchedItem {
-                item_name: objective.item_name.clone(),
-                tadr: source.tadr,
-                target_quantity: objective.target_quantity,
-                y_item: y_item as f64,
-            });
+            let y_item = calculate_item_yield(
+                source,
+                meta.m_node as f32,
+                m_loot,
+                skill as f32,
+                &arsenal,
+            );
+
+            *yields_at_node.entry(objective.item_name.clone()).or_insert(0.0) += y_item;
+
+            let entry = matched_items
+                .iter_mut()
+                .find(|m| m.item_name == objective.item_name);
+            if let Some(entry) = entry {
+                entry.y_item += y_item as f64;
+            } else {
+                matched_items.push(MatchedItem {
+                    item_name: objective.item_name.clone(),
+                    tadr: source.tadr,
+                    target_quantity: objective.target_quantity,
+                    y_item: y_item as f64,
+                });
+            }
+        }
+
+        if objective_has_eximus {
+            let bonus = hollvania_yield_bonus(
+                timestamp_ms,
+                meta.tags.contains(&"hollvania".to_string()),
+                true,
+            );
+            if bonus > 0.0 {
+                for item in &mut matched_items {
+                    if index
+                        .items
+                        .get(&item.item_name)
+                        .map(|sources| item_has_eximus_tag(sources))
+                        .unwrap_or(false)
+                    {
+                        item.y_item += bonus as f64;
+                        *yields_at_node.entry(item.item_name.clone()).or_insert(0.0) += bonus;
+                    }
+                }
+            }
         }
 
         let node_level = meta.max_enemy_level as f32;
-        let (mut cost, projected_yield, friction) = calculate_prapa_cost(
-            base_drop_sum,
+        let (etc_with_friction, friction) = calculate_etc_cost(
+            &objectives,
+            &yields_at_node,
+            &global_max_yields,
             node_level,
-            meta.m_node as f32,
-            m_loot as f32,
-            s_m,
             skill as f32,
-            &arsenal,
         );
 
-        let hollvania_bonus = hollvania_yield_bonus(
-            timestamp_ms,
-            meta.tags.contains(&"hollvania".to_string()),
-            objective_has_eximus,
-        );
-        let projected_yield_adj = projected_yield as f64 + hollvania_bonus as f64;
-        if hollvania_bonus > 0.0 && projected_yield_adj > 0.0 {
-            cost = (1.0 / (projected_yield_adj as f32 * s_m)) * friction;
-        }
-
-        cost = apply_omnia_cost_multiplier(
-            cost as f64,
+        let cost = apply_omnia_cost_multiplier(
+            etc_with_friction as f64,
             skill,
             meta.tags.contains(&"omnia-cascade".to_string()),
             objective_has_prime,
         ) as f32;
+
+        let etc_minutes = if etc_with_friction.is_finite() && etc_with_friction < f32::MAX {
+            (etc_with_friction / friction).max(0.0)
+        } else {
+            f32::MAX
+        };
 
         let mut warnings: Vec<String> = Vec::new();
         let friction_applied = friction > 1.0;
@@ -207,14 +407,18 @@ pub fn compute_ranked_nodes(
         if let Some(w) = vinquibus_warning(arsenal.has_vinquibus, has_descendia_item) {
             warnings.push(w.to_string());
         }
+        if matches
+            .iter()
+            .any(|(_, s)| async_night_cycle_warning(&s.tags).is_some())
+        {
+            warnings.push(ASYNC_NIGHT_WARNING.to_string());
+        }
 
         ranked.push(RankedNode {
             location_id,
             game_mode: meta.game_mode,
             cost: cost as f64,
-            efficiency: if cost > 0.0 { 1.0 / cost as f64 } else { 0.0 },
-            projected_yield: projected_yield_adj,
-            synergy_multiplier: s_m as f64,
+            etc_minutes: etc_minutes as f64,
             friction_penalty: friction as f64,
             kpm,
             matched_items,
@@ -226,7 +430,14 @@ pub fn compute_ranked_nodes(
 
     ranked.sort_by(|a, b| a.cost.partial_cmp(&b.cost).unwrap_or(std::cmp::Ordering::Equal));
 
-    serde_json::to_string(&ranked).unwrap_or_else(|_| "[]".to_string())
+    let result = PrapaEngineResult {
+        ranked_nodes: ranked,
+        pathing_failures,
+    };
+
+    serde_json::to_string(&result).unwrap_or_else(|_| {
+        r#"{"rankedNodes":[],"pathingFailures":[]}"#.to_string()
+    })
 }
 
 #[cfg(test)]
@@ -239,6 +450,15 @@ mod tests {
         let json = r#"{"locationId":"X","dropType":"EnemyDrop","gameMode":"Enemy Drop","rotation":"A","baseChance":null,"tadr":0}"#;
         let source: DropSource = serde_json::from_str(json).expect("should coerce null to zero");
         assert_eq!(source.base_chance, 0.0);
+    }
+
+    #[test]
+    fn parses_item_index_with_null_drop_chances() {
+        let json = r#"{"items":{"Test Item":[{"locationId":"X","dropType":"EnemyDrop","gameMode":"Enemy Drop","rotation":"A","baseChance":null,"tadr":null}]},"itemNames":["Test Item"]}"#;
+        let index: ItemIndex = serde_json::from_str(json).expect("legacy null chances should parse");
+        let sources = index.items.get("Test Item").expect("item present");
+        assert_eq!(sources[0].base_chance, 0.0);
+        assert_eq!(sources[0].tadr, 0.0);
     }
 
     #[test]

@@ -16,7 +16,10 @@ export interface DropSource {
   rotation: string
   baseChance: number
   tadr: number
+  timeGateMinutes?: number
   tags?: string[]
+  spawnIntervalMinutes?: number
+  dropYield?: number
 }
 
 export type SkillTier = 'baseline' | 'intermediate' | 'expert'
@@ -57,6 +60,13 @@ export interface ArsenalState {
   hasVinquibus: boolean
   dropChanceBoosterActive: boolean
   resourceBoosterActive: boolean
+  hasZarimanUnlocked: boolean
+  steelPathActive: boolean
+}
+
+export interface PrapaEngineResult {
+  rankedNodes: RankedNode[]
+  pathingFailures: string[]
 }
 
 export interface MatchedItem {
@@ -69,10 +79,10 @@ export interface MatchedItem {
 export interface RankedNode {
   locationId: string
   gameMode: string
+  /** Final ETC in minutes (includes friction and edge-case multipliers). Lower is better. */
   cost: number
-  efficiency: number
-  projectedYield: number
-  synergyMultiplier: number
+  /** Pre-friction estimated time to completion in minutes. */
+  etcMinutes: number
   frictionPenalty: number
   kpm: number
   matchedItems: MatchedItem[]
@@ -91,4 +101,6 @@ export const DEFAULT_ARSENAL: ArsenalState = {
   hasVinquibus: false,
   dropChanceBoosterActive: false,
   resourceBoosterActive: false,
+  hasZarimanUnlocked: true,
+  steelPathActive: false,
 }

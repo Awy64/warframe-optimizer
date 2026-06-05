@@ -1,0 +1,12 @@
+[
+  {
+    "itemName": "Eidolon Shard",
+    "locationId": "Plains of Eidolon - Teralyst",
+    "dropType": "MissionReward",
+    "gameMode": "Capture",
+    "rotation": "A",
+    "baseChance": 100,
+    "tadr": 20,
+    "tags": ["async-night-cycle"]
+  }
+]

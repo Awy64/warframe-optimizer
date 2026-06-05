@@ -11,7 +11,10 @@
     "build:all": "npm run build:index && npm run build:wasm && npm run build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test:wasm": "cd wasm && cargo test"
+    "test:wasm": "cd wasm && cargo test",
+    "test:index": "tsx scripts/validate-index.ts",
+    "test:engine": "npm run test:index && npm run test:wasm && npm run test:scenarios",
+    "test:scenarios": "tsx scripts/run-scenarios.ts"
   },
   "dependencies": {
     "react": "^19.2.6",

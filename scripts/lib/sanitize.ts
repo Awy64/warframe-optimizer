@@ -9,14 +9,15 @@ export function coerceChance(value: unknown): number | null {
 }
 
 export function buildDropSource(
-  fields: Omit<DropSource, 'baseChance' | 'tadr'> & { baseChance: unknown },
+  fields: Omit<DropSource, 'baseChance' | 'tadr'> & { baseChance: unknown; tadr?: number },
 ): DropSource | null {
   const baseChance = coerceChance(fields.baseChance)
   if (baseChance === null) return null
+  const tadr = fields.tadr ?? computeTadr(baseChance, fields.gameMode, fields.rotation)
   return {
     ...fields,
     baseChance,
-    tadr: computeTadr(baseChance, fields.gameMode, fields.rotation),
+    tadr,
   }
 }
 

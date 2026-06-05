@@ -1,0 +1,9 @@
+{
+  "enemyResourceDropChance": 0.03,
+  "rarityWeights": {
+    "Common": 0.7,
+    "Uncommon": 0.22,
+    "Rare": 0.03,
+    "Legendary": 0.01
+  }
+}

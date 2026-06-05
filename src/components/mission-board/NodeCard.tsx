@@ -1,63 +1,80 @@
 import type { RankedNode } from '../../types'
+import { formatDuration, formatEtaBadge } from '../../lib/formatDuration'
+import { itemEtaAtNode, type ItemBestNode } from '../../lib/routeItinerary'
 import { supplementWarnings } from '../../lib/warnings'
+import { etcBadgeClasses } from '../../lib/yieldTier'
+import { WarningTooltip } from './WarningTooltip'
 
 interface NodeCardProps {
   node: RankedNode
+  globalBest: Map<string, ItemBestNode>
+  rank: number
 }
 
-export function NodeCard({ node }: NodeCardProps) {
+export function NodeCard({ node, globalBest, rank }: NodeCardProps) {
   const warnings = supplementWarnings(node)
-  const efficiencyPct = (node.efficiency * 100).toFixed(1)
+  const uniqueMatches = Array.from(
+    new Map(node.matchedItems.map((item) => [item.itemName, item])).values(),
+  )
 
   return (
-    <article className="rounded-lg border border-tenno-border bg-tenno-panel p-4 transition hover:border-orokin-dim">
-      <div className="mb-2 flex items-start justify-between gap-2">
-        <div>
-          <h3 className="font-semibold text-gray-100">{node.locationId}</h3>
+    <article className="rounded-lg border border-tenno-border bg-tenno-panel p-4 transition hover:border-orokin-dim/60">
+      <div className="mb-3 flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-tenno-muted">#{rank}</span>
+            <h3 className="truncate font-semibold text-gray-100">{node.locationId}</h3>
+            <WarningTooltip warnings={warnings} />
+          </div>
           <p className="text-sm text-tenno-muted">{node.gameMode}</p>
         </div>
-        <div className="text-right">
-          <span className="rounded bg-orokin/20 px-2 py-0.5 text-sm font-bold text-orokin">
-            {efficiencyPct}% eff
-          </span>
-          <p className="mt-1 text-xs text-tenno-muted">Cost {node.cost.toFixed(4)}</p>
-        </div>
       </div>
 
-      <div className="mb-3 flex flex-wrap gap-1">
-        {node.matchedItems.map((item) => (
-          <span
-            key={item.itemName}
-            className="rounded bg-tenno-bg px-2 py-0.5 text-xs text-tenno-cyan"
-          >
-            {item.itemName} ×{item.targetQuantity}
-          </span>
-        ))}
-      </div>
+      <div className="mb-3 flex flex-wrap gap-2">
+        {uniqueMatches.map((item) => {
+          const etaMinutes = itemEtaAtNode(item.targetQuantity, item.yItem)
+          const best = globalBest.get(item.itemName)
+          const bestEtaMinutes = best
+            ? itemEtaAtNode(item.targetQuantity, best.yield)
+            : etaMinutes
+          const badgeClasses = etcBadgeClasses(etaMinutes, bestEtaMinutes)
 
-      {warnings.length > 0 && (
-        <ul className="mb-3 space-y-1">
-          {warnings.map((w) => (
-            <li key={w} className="text-xs text-tenno-danger">
-              ⚠ {w}
-            </li>
-          ))}
-        </ul>
-      )}
+          return (
+            <div
+              key={item.itemName}
+              className="flex flex-wrap items-center gap-1.5 rounded-md border border-tenno-border/80 bg-tenno-bg px-2.5 py-1.5"
+            >
+              <span className="text-xs font-medium text-tenno-cyan">
+                {item.itemName}
+                {item.targetQuantity > 1 ? ` ×${item.targetQuantity}` : ''}
+              </span>
+              <span className={`rounded px-1.5 py-0.5 text-xs font-bold ${badgeClasses}`}>
+                ETA: {formatDuration(etaMinutes, true)}
+              </span>
+            </div>
+          )
+        })}
+      </div>
 
       <details className="text-xs text-tenno-muted">
-        <summary className="cursor-pointer hover:text-tenno-cyan">Yield details</summary>
+        <summary className="cursor-pointer hover:text-tenno-cyan">Nerd stats</summary>
         <dl className="mt-2 grid grid-cols-2 gap-1">
           <dt>KPM</dt>
           <dd>{node.kpm.toFixed(1)}</dd>
-          <dt>Projected Y</dt>
-          <dd>{node.projectedYield.toFixed(4)}</dd>
-          <dt>Synergy S_m</dt>
-          <dd>{node.synergyMultiplier.toFixed(2)}</dd>
+          <dt>Full route ETC</dt>
+          <dd>{formatEtaBadge(node.cost)}</dd>
+          <dt>Base ETC</dt>
+          <dd>{formatEtaBadge(node.etcMinutes)}</dd>
           <dt>Friction F_p</dt>
           <dd>{node.frictionPenalty.toFixed(3)}</dd>
           <dt>Max enemy lvl</dt>
           <dd>{node.maxEnemyLevel}</dd>
+          {uniqueMatches.map((item) => (
+            <div key={item.itemName} className="contents">
+              <dt>{item.itemName} Y</dt>
+              <dd>{item.yItem.toFixed(4)}/min</dd>
+            </div>
+          ))}
         </dl>
       </details>
     </article>

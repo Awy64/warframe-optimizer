@@ -1,16 +1,28 @@
+import { createHash } from 'node:crypto'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { DropSource, ItemIndexOutput, NodeLevelsOutput, NodeMeta, SkillTier, WfcdNode } from './lib/types.js'
-import { indexBountySources } from './lib/bounty-ev.js'
+import { parseBountyTier } from './lib/bounty-ev.js'
+import { buildEnemyDropSource } from './lib/enemy-drops.js'
+import { canonicalizeLocationId, dedupeAndMergeItemSources } from './lib/merge-sources.js'
 import { locationId, normalizeItemName } from './lib/normalize.js'
+import { fetchItemRarityOverrides, injectPlanetaryEnemyDrops } from './lib/planetary-drops.js'
+import { applyItemAliases } from './lib/item-aliases.js'
+import { ingestManualDrops } from './lib/manual-drops.js'
+import { propagateDescendiaTags } from './lib/propagate-tags.js'
+import { ingestRelicPrimeComponents } from './lib/sources/relics.js'
+import { ingestTransientRewards } from './lib/sources/transients.js'
 import { buildDropSource, validateIndex } from './lib/sanitize.js'
 import enemyNodeMap from './lib/enemy-node-map.json' with { type: 'json' }
+import transientLocations from './config/transient_locations.json' with { type: 'json' }
+import manualDrops from './config/manual_drops.json' with { type: 'json' }
 import nodeMultipliers from './config/node_multipliers.json' with { type: 'json' }
 import descendiaItems from './config/descendia_items.json' with { type: 'json' }
 import eximusItems from './config/eximus_items.json' with { type: 'json' }
 import omniaCascadeNodes from './config/omnia_cascade_nodes.json' with { type: 'json' }
-import resourceFarmOverrides from './config/resource_farm_overrides.json' with { type: 'json' }
+import planetaryEngine from './config/planetary_engine.json' with { type: 'json' }
+import regionResourceTable from './config/region_resource_table.json' with { type: 'json' }
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const ROOT = join(__dirname, '..')
@@ -43,9 +55,16 @@ function inferSkillTier(nodeName: string, locId: string): SkillTier {
 function inferTags(nodeName: string, planet: string, locId: string): string[] {
   const tags: string[] = []
   const lower = nodeName.toLowerCase()
-  if (lower.includes('descendia')) tags.push('descendia')
+  if (
+    lower.includes('descendia') ||
+    locId.includes('Dark Refractory') ||
+    locId.includes('Recall:')
+  ) {
+    tags.push('descendia')
+  }
   if (omniaCascadeNodes.includes(locId)) tags.push('omnia-cascade')
   if (lower.includes('hollvania') || planet.toLowerCase().includes('hollvania')) tags.push('hollvania')
+  if (planet === 'Zariman' || locId.includes('Zariman')) tags.push('requires-zariman')
   if ((nodeMultipliers as Record<string, number>)[locId]) tags.push('dark-sector')
   return tags
 }
@@ -55,7 +74,31 @@ function tagSource(source: DropSource, itemName: string): DropSource {
   if ((descendiaItems as string[]).includes(itemName)) tags.push('descendia-exclusive')
   if ((eximusItems as string[]).includes(itemName)) tags.push('eximus-loot')
   if (isPrimeComponent(itemName)) tags.push('prime-component')
+  if (source.locationId.includes('Zariman')) tags.push('requires-zariman')
   return tags.length ? { ...source, tags } : source
+}
+
+const ACOLYTE_ENEMIES = new Set([
+  'Misery',
+  'Angst',
+  'Torment',
+  'Violence',
+  'Malice',
+  'Miseria',
+  'Odium',
+  'Pavor',
+])
+
+function tagSteelPathSources(index: Record<string, DropSource[]>): void {
+  const sources = index['Steel Essence']
+  if (!sources) return
+  for (const source of sources) {
+    const enemy = source.locationId.replace(/^Enemy - /, '')
+    if (!ACOLYTE_ENEMIES.has(enemy)) continue
+    source.tags = [...(source.tags ?? []), 'interval-spawn', 'steel-path']
+    source.spawnIntervalMinutes = 6
+    source.dropYield = 2
+  }
 }
 
 function addEntry(index: Record<string, DropSource[]>, itemName: string, source: DropSource | null) {
@@ -63,6 +106,27 @@ function addEntry(index: Record<string, DropSource[]>, itemName: string, source:
   const canonical = normalizeItemName(itemName)
   if (!index[canonical]) index[canonical] = []
   index[canonical].push(tagSource(source, canonical))
+}
+
+const MISSION_INDEX_TO_GAME_MODE: Record<number, string> = {
+  0: 'Assassination',
+  1: 'Exterminate',
+  2: 'Survival',
+  3: 'Rescue',
+  4: 'Interception',
+  5: 'Sabotage',
+  7: 'Capture',
+  8: 'Defense',
+  9: 'Mobile Defense',
+  13: 'Sabotage',
+  17: 'Excavation',
+}
+
+function gameModeForNode(node: WfcdNode): string {
+  if (node.missionIndex != null && node.missionIndex in MISSION_INDEX_TO_GAME_MODE) {
+    return MISSION_INDEX_TO_GAME_MODE[node.missionIndex]
+  }
+  return 'Mission'
 }
 
 function buildNodeLevels(wfcdNodes: WfcdNode[]): NodeLevelsOutput {
@@ -74,7 +138,7 @@ function buildNodeLevels(wfcdNodes: WfcdNode[]): NodeLevelsOutput {
       locationId: locId,
       planet: node.systemName,
       nodeName: node.name,
-      gameMode: 'Mission',
+      gameMode: gameModeForNode(node),
       minEnemyLevel: node.minEnemyLevel ?? 1,
       maxEnemyLevel: node.maxEnemyLevel ?? 30,
       mNode: (nodeMultipliers as Record<string, number>)[locId] ?? 1.0,
@@ -139,12 +203,15 @@ async function main() {
     deimosRewards,
     hexRewards,
     entratiLab,
+    zarimanRewards,
     modLocations,
     resourceByAvatar,
     enemyBlueprintTables,
     blueprintLocations,
     syndicates,
     miscItems,
+    transientRewards,
+    relics,
     wfcdNodes,
   ] = await Promise.all([
     fetchJson(`${WFCD_BASE}/missionRewards.json`),
@@ -153,12 +220,15 @@ async function main() {
     fetchJson(`${WFCD_BASE}/deimosRewards.json`),
     fetchJson(`${WFCD_BASE}/hexRewards.json`),
     fetchJson(`${WFCD_BASE}/entratiLabRewards.json`),
+    fetchJson(`${WFCD_BASE}/zarimanRewards.json`),
     fetchJson(`${WFCD_BASE}/modLocations.json`),
     fetchJson(`${WFCD_BASE}/resourceByAvatar.json`),
     fetchJson(`${WFCD_BASE}/enemyBlueprintTables.json`),
     fetchJson(`${WFCD_BASE}/blueprintLocations.json`),
     fetchJson(`${WFCD_BASE}/syndicates.json`),
     fetchJson(`${WFCD_BASE}/miscItems.json`),
+    fetchJson(`${WFCD_BASE}/transientRewards.json`),
+    fetchJson(`${WFCD_BASE}/relics.json`),
     fetchJson<WfcdNode[]>(NODE_URL),
   ])
 
@@ -191,20 +261,18 @@ async function main() {
     ['Deimos', deimosRewards, 'deimosRewards'],
     ['Hex', hexRewards, 'hexBountyRewards'],
     ['Entrati Lab', entratiLab, 'entratiLabRewards'],
+    ['Zariman', zarimanRewards, 'zarimanRewards'],
   ]
 
   for (const [region, data, key] of bountyRegions) {
     const tiers = (data as Record<string, Array<{ bountyLevel: string; rewards: Record<string, { itemName: string }[]> }>>)[key] ?? []
     for (const tier of tiers) {
-      const tierSources = indexBountySources(region, { [key]: [tier] }, key)
-      const itemSet = new Set<string>()
-      for (const rewards of Object.values(tier.rewards ?? {})) {
-        for (const r of rewards) itemSet.add(r.itemName)
-      }
-      for (const itemName of itemSet) {
-        for (const s of tierSources) {
-          addEntry(index, itemName, s)
-        }
+      for (const { itemName, source } of parseBountyTier(region, tier)) {
+        const tagged =
+          region === 'Zariman'
+            ? { ...source, tags: [...(source.tags ?? []), 'requires-zariman'] }
+            : source
+        addEntry(index, itemName, tagged)
       }
     }
   }
@@ -212,7 +280,9 @@ async function main() {
   for (const entry of (modLocations as { modLocations: Array<{ modName: string; enemies: Array<{ enemyName: string; chance: number }> }> }).modLocations ?? []) {
     for (const enemy of entry.enemies ?? []) {
       if (!enemy.chance) continue
-      const locId = (enemyNodeMap as Record<string, string>)[enemy.enemyName] ?? `Enemy - ${enemy.enemyName}`
+      const locId = canonicalizeLocationId(
+        (enemyNodeMap as Record<string, string>)[enemy.enemyName] ?? `Enemy - ${enemy.enemyName}`,
+      )
       addEntry(index, entry.modName, buildDropSource({
         locationId: locId,
         dropType: 'ModLocation',
@@ -226,9 +296,8 @@ async function main() {
   for (const entry of (resourceByAvatar as { resourceByAvatar: Array<{ source: string; items: { item: string; chance: number }[] }> }).resourceByAvatar) {
     const locId = (enemyNodeMap as Record<string, string>)[entry.source] ?? `Enemy - ${entry.source}`
     for (const item of entry.items) {
-      addEntry(index, item.item, buildDropSource({
+      addEntry(index, item.item, buildEnemyDropSource(entry.source, {
         locationId: locId,
-        dropType: 'EnemyDrop',
         gameMode: 'Enemy Drop',
         rotation: 'A',
         baseChance: item.chance,
@@ -239,9 +308,8 @@ async function main() {
   for (const table of (enemyBlueprintTables as { enemyBlueprintTables: Array<{ enemyName: string; items: { itemName: string; chance: number }[] }> }).enemyBlueprintTables ?? []) {
     const locId = (enemyNodeMap as Record<string, string>)[table.enemyName] ?? `Enemy - ${table.enemyName}`
     for (const item of table.items ?? []) {
-      addEntry(index, item.itemName, buildDropSource({
+      addEntry(index, item.itemName, buildEnemyDropSource(table.enemyName, {
         locationId: locId,
-        dropType: 'EnemyDrop',
         gameMode: 'Enemy Drop',
         rotation: 'A',
         baseChance: item.chance,
@@ -252,7 +320,9 @@ async function main() {
   for (const entry of (blueprintLocations as { blueprintLocations: Array<{ itemName: string; enemies: Array<{ enemyName: string; chance: number }> }> }).blueprintLocations ?? []) {
     for (const enemy of entry.enemies ?? []) {
       if (!enemy.chance) continue
-      const locId = (enemyNodeMap as Record<string, string>)[enemy.enemyName] ?? `Enemy - ${enemy.enemyName}`
+      const locId = canonicalizeLocationId(
+        (enemyNodeMap as Record<string, string>)[enemy.enemyName] ?? `Enemy - ${enemy.enemyName}`,
+      )
       addEntry(index, entry.itemName, buildDropSource({
         locationId: locId,
         dropType: 'Blueprint',
@@ -279,9 +349,8 @@ async function main() {
   for (const entry of (miscItems as { miscItems: Array<{ enemyName: string; items: { itemName: string; chance: number }[] }> }).miscItems ?? []) {
     const locId = (enemyNodeMap as Record<string, string>)[entry.enemyName] ?? `Boss - ${entry.enemyName}`
     for (const item of entry.items ?? []) {
-      addEntry(index, item.itemName, buildDropSource({
+      addEntry(index, item.itemName, buildEnemyDropSource(entry.enemyName, {
         locationId: locId,
-        dropType: 'EnemyDrop',
         gameMode: 'Boss',
         rotation: 'A',
         baseChance: item.chance,
@@ -289,16 +358,43 @@ async function main() {
     }
   }
 
-  for (const override of resourceFarmOverrides as Array<{ itemName: string; locationId: string; gameMode: string; baseChance: number; rotation: string }>) {
-    addEntry(index, override.itemName, buildDropSource({
-      locationId: override.locationId,
-      dropType: 'EnemyDrop',
-      gameMode: override.gameMode,
-      rotation: override.rotation,
-      baseChance: override.baseChance,
-    }))
-  }
+  const rarityOverrides = await fetchItemRarityOverrides()
+  const planetaryInjected = injectPlanetaryEnemyDrops(
+    index,
+    wfcdNodes,
+    regionResourceTable,
+    planetaryEngine,
+    rarityOverrides,
+    addEntry,
+  )
+  console.log(`Injected ${planetaryInjected} planetary heuristic enemy drops`)
 
+  const transientInjected = ingestTransientRewards(
+    transientRewards,
+    transientLocations as Record<string, string>,
+    addEntry,
+    index,
+  )
+  console.log(`Indexed ${transientInjected} transient reward rows`)
+
+  const relicInjected = ingestRelicPrimeComponents(
+    relics,
+    omniaCascadeNodes as string[],
+    isPrimeComponent,
+    addEntry,
+    index,
+  )
+  console.log(`Indexed ${relicInjected} Omnia cascade prime-component rows from relics`)
+
+  const aliasCount = applyItemAliases(index)
+  if (aliasCount > 0) console.log(`Applied ${aliasCount} item name alias(es)`)
+
+  const manualCount = ingestManualDrops(manualDrops as import('./lib/manual-drops.js').ManualDropEntry[], addEntry, index)
+  console.log(`Indexed ${manualCount} manual drop row(s)`)
+
+  tagSteelPathSources(index)
+
+  dedupeAndMergeItemSources(index)
   validateIndex(index)
   const itemNames = Object.keys(index).sort((a, b) => a.localeCompare(b))
   const itemIndex: ItemIndexOutput = { items: index, itemNames }
@@ -308,9 +404,15 @@ async function main() {
     for (const s of sources) ensureNodeMeta(nodeLevels.nodes, s)
   }
 
+  propagateDescendiaTags(nodeLevels.nodes)
+
   mkdirSync(PUBLIC, { recursive: true })
-  writeFileSync(join(PUBLIC, 'item_index.json'), JSON.stringify(itemIndex))
+  const itemJson = JSON.stringify(itemIndex)
+  const dataVersion = createHash('sha256').update(itemJson).digest('hex').slice(0, 12)
+  writeFileSync(join(PUBLIC, 'item_index.json'), itemJson)
   writeFileSync(join(PUBLIC, 'node_levels.json'), JSON.stringify(nodeLevels))
+  writeFileSync(join(PUBLIC, 'data_version.txt'), `${dataVersion}\n`)
+  writeFileSync(join(ROOT, 'src', 'data_version.txt'), `${dataVersion}\n`)
   console.log(`Built index: ${itemNames.length} items, ${Object.keys(nodeLevels.nodes).length} nodes`)
 }
 
