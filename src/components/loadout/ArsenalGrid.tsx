@@ -1,24 +1,41 @@
 import { useOptimizerStore } from '../../stores/optimizerStore'
 import type { ArsenalState } from '../../types'
 
-interface CheckboxProps {
+interface SwitchProps {
   label: string
   checked: boolean
   disabled?: boolean
+  color?: 'gold' | 'cyan'
   onChange: (checked: boolean) => void
 }
 
-function Checkbox({ label, checked, disabled, onChange }: CheckboxProps) {
+function Switch({ label, checked, disabled, color = 'cyan', onChange }: SwitchProps) {
+  const activeColorClasses =
+    color === 'gold'
+      ? 'peer-checked:border-orokin peer-checked:bg-orokin/10 peer-checked:after:bg-orokin peer-checked:after:shadow-[0_0_6px_#c8a951]'
+      : 'peer-checked:border-tenno-cyan peer-checked:bg-tenno-cyan/10 peer-checked:after:bg-tenno-cyan peer-checked:after:shadow-[0_0_6px_#4ecdc4]'
+
   return (
-    <label className={`flex items-center gap-2 text-sm ${disabled ? 'opacity-40' : ''}`}>
-      <input
-        type="checkbox"
-        checked={checked}
-        disabled={disabled}
-        onChange={(e) => onChange(e.target.checked)}
-        className="accent-orokin"
-      />
-      {label}
+    <label
+      className={`flex items-center justify-between rounded-lg border border-tenno-border bg-tenno-panel/40 px-3 py-2 text-sm transition duration-200 hover:border-tenno-muted/40 ${
+        disabled ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'
+      }`}
+    >
+      <span className={`text-xs font-semibold uppercase tracking-wider ${checked ? 'text-gray-100' : 'text-tenno-muted'}`}>
+        {label}
+      </span>
+      <div className="relative flex items-center">
+        <input
+          type="checkbox"
+          checked={checked}
+          disabled={disabled}
+          onChange={(e) => onChange(e.target.checked)}
+          className="sr-only peer"
+        />
+        <div
+          className={`relative w-8 h-4.5 bg-tenno-bg border border-tenno-border rounded-full transition duration-200 peer-focus:outline-none after:content-[''] after:absolute after:top-[2.5px] after:left-[2.5px] after:bg-tenno-muted after:rounded-full after:h-2.5 after:w-2.5 after:transition-all peer-checked:after:translate-x-3.5 ${activeColorClasses}`}
+        />
+      </div>
     </label>
   )
 }
@@ -26,8 +43,8 @@ function Checkbox({ label, checked, disabled, onChange }: CheckboxProps) {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-tenno-muted">{title}</h3>
-      <div className="grid grid-cols-2 gap-2">{children}</div>
+      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-tenno-muted">{title}</h3>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">{children}</div>
     </div>
   )
 }
@@ -43,47 +60,52 @@ export function ArsenalGrid() {
   return (
     <div className="space-y-4">
       <Section title="Loot Frames">
-        <Checkbox label="Ivara" checked={arsenal.hasIvara} onChange={set('hasIvara')} />
-        <Checkbox label="Atlas" checked={arsenal.hasAtlas} onChange={set('hasAtlas')} />
-        <Checkbox
+        <Switch label="Ivara" checked={arsenal.hasIvara} color="gold" onChange={set('hasIvara')} />
+        <Switch label="Atlas" checked={arsenal.hasAtlas} color="gold" onChange={set('hasAtlas')} />
+        <Switch
           label="Khora"
           checked={arsenal.hasKhora}
           disabled={khoraDisabled}
+          color="gold"
           onChange={set('hasKhora')}
         />
-        <Checkbox
+        <Switch
           label="Hydroid"
           checked={arsenal.hasHydroid}
+          color="gold"
           onChange={(v) => {
             if (v) setArsenal({ hasHydroid: true, hasKhora: false })
             else setArsenal({ hasHydroid: false })
           }}
         />
-        <Checkbox label="Nekros" checked={arsenal.hasNekros} onChange={set('hasNekros')} />
+        <Switch label="Nekros" checked={arsenal.hasNekros} color="gold" onChange={set('hasNekros')} />
       </Section>
+
       <Section title="Weapons">
-        <Checkbox label="High Slash" checked={arsenal.hasHighSlash} onChange={set('hasHighSlash')} />
-        <Checkbox label="Vinquibus" checked={arsenal.hasVinquibus} onChange={set('hasVinquibus')} />
+        <Switch label="High Slash" checked={arsenal.hasHighSlash} onChange={set('hasHighSlash')} />
+        <Switch label="Vinquibus" checked={arsenal.hasVinquibus} onChange={set('hasVinquibus')} />
       </Section>
+
       <Section title="Boosters">
-        <Checkbox
+        <Switch
           label="Drop Chance"
           checked={arsenal.dropChanceBoosterActive}
           onChange={set('dropChanceBoosterActive')}
         />
-        <Checkbox
+        <Switch
           label="Resource"
           checked={arsenal.resourceBoosterActive}
           onChange={set('resourceBoosterActive')}
         />
       </Section>
+
       <Section title="Quest & Mode">
-        <Checkbox
+        <Switch
           label="Angels of the Zariman"
           checked={arsenal.hasZarimanUnlocked}
           onChange={set('hasZarimanUnlocked')}
         />
-        <Checkbox
+        <Switch
           label="Steel Path"
           checked={arsenal.steelPathActive}
           onChange={set('steelPathActive')}

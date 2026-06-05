@@ -1,45 +1,121 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useOptimizerStore } from '../stores/optimizerStore'
-import type { RankedNode } from '../types'
+import type { PrapaOutput } from '../types'
 import { computeEngineResult, ensureWasm, wasmErrorMessage } from '../wasm/prapa'
+import { buildGoldenPath } from '../lib/routeItinerary'
+import { supplementWarnings } from '../lib/warnings'
 
 export function usePrapaEngine() {
   const objectives = useOptimizerStore((s) => s.objectives)
   const skillCoefficient = useOptimizerStore((s) => s.skillCoefficient)
   const arsenal = useOptimizerStore((s) => s.arsenal)
 
-  const [rankedNodes, setRankedNodes] = useState<RankedNode[]>([])
-  const [pathingFailures, setPathingFailures] = useState<string[]>([])
+  const [debouncedObjectives, setDebouncedObjectives] = useState(objectives)
+  const [debouncedSkill, setDebouncedSkill] = useState(skillCoefficient)
+  const [prapaOutput, setPrapaOutput] = useState<PrapaOutput | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const inputKey = useMemo(
-    () => JSON.stringify({ objectives, skillCoefficient, arsenal }),
-    [objectives, skillCoefficient, arsenal],
-  )
+  const prevLengthRef = useRef(objectives.length)
 
+  // Debounce/Immediate effect for objectives
   useEffect(() => {
-    if (objectives.length === 0) {
-      setRankedNodes([])
-      setPathingFailures([])
+    if (objectives.length !== prevLengthRef.current) {
+      prevLengthRef.current = objectives.length
+      setDebouncedObjectives(objectives)
+      return
+    }
+
+    const handler = setTimeout(() => {
+      setDebouncedObjectives(objectives)
+    }, 300)
+
+    return () => {
+      clearTimeout(handler)
+    }
+  }, [objectives])
+
+  // Debounce effect for skillCoefficient
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSkill(skillCoefficient)
+    }, 300)
+
+    return () => {
+      clearTimeout(handler)
+    }
+  }, [skillCoefficient])
+
+  // Computation effect running WASM calculations
+  useEffect(() => {
+    if (debouncedObjectives.length === 0) {
+      setPrapaOutput(null)
       return
     }
 
     let cancelled = false
-    const timer = setTimeout(async () => {
+
+    const runCompute = async () => {
       setLoading(true)
       setError(null)
       try {
         await ensureWasm()
         if (cancelled) return
+
         const result = computeEngineResult(
-          JSON.stringify(objectives),
-          skillCoefficient,
+          JSON.stringify(debouncedObjectives),
+          debouncedSkill,
           JSON.stringify(arsenal),
         )
+
+        if (cancelled) return
+
+        const goldenPath = buildGoldenPath(result.rankedNodes, debouncedObjectives)
+
+        const output: PrapaOutput = {
+          summary: {
+            rankedNodeCount: result.rankedNodes.length,
+            optimalRouteCostMinutes: goldenPath?.primaryPlan.finalCostMinutes ?? 0,
+            optimalRouteTiedNodes: goldenPath?.tiedNodes.length ?? 0,
+          },
+          pathingFailures: result.pathingFailures,
+          optimalRoute: goldenPath
+            ? {
+                totalCostMinutes: goldenPath.primaryPlan.finalCostMinutes,
+                baseEtcMinutes: goldenPath.primaryPlan.baseEtcMinutes,
+                tiedNodeCount: goldenPath.tiedNodes.length,
+                primaryPlan: {
+                  startingLocationId: goldenPath.primaryPlan.startingLocationId,
+                  baseEtcMinutes: goldenPath.primaryPlan.baseEtcMinutes,
+                  steps: goldenPath.primaryPlan.steps.map((step) => ({
+                    stepNumber: step.stepNumber,
+                    locationId: step.locationId,
+                    gameMode: step.gameMode,
+                    itemName: step.itemName,
+                    quantity: step.quantity,
+                    estimatedMinutes: step.estimatedMinutes,
+                    warnings: step.warnings,
+                  })),
+                },
+                alternativeStarters: goldenPath.alternativeStarters,
+              }
+            : undefined,
+          rankedNodes: result.rankedNodes.map((node, index) => ({
+            rank: index + 1,
+            locationId: node.locationId,
+            gameMode: node.gameMode,
+            cost: node.cost,
+            etcMinutes: node.etcMinutes,
+            matchedItems: node.matchedItems.map((item) => ({
+              itemName: item.itemName,
+              yItem: item.yItem,
+            })),
+            warningsResolved: supplementWarnings(node),
+          })),
+        }
+
         if (!cancelled) {
-          setRankedNodes(result.rankedNodes)
-          setPathingFailures(result.pathingFailures)
+          setPrapaOutput(output)
         }
       } catch (err) {
         if (!cancelled) {
@@ -48,13 +124,15 @@ export function usePrapaEngine() {
       } finally {
         if (!cancelled) setLoading(false)
       }
-    }, 150)
+    }
+
+    runCompute()
 
     return () => {
       cancelled = true
-      clearTimeout(timer)
     }
-  }, [inputKey, objectives, skillCoefficient, arsenal])
+  }, [debouncedObjectives, debouncedSkill, arsenal])
 
-  return { rankedNodes, pathingFailures, loading, error }
+  return { prapaOutput, loading, error }
 }
+

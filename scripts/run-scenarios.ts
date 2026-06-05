@@ -372,6 +372,157 @@ const SCENARIOS: Scenario[] = [
       return notes
     },
   },
+  {
+    id: 10,
+    name: 'The "Slash-Meta" Volumetric Escalation',
+    skill: 0.7,
+    objectives: [{ itemName: 'Orokin Cell', targetQuantity: 50 }],
+    arsenal: {
+      hasKhora: true,
+      hasNekros: true,
+      hasHighSlash: true,
+      dropChanceBoosterActive: true,
+      resourceBoosterActive: true,
+      hasZarimanUnlocked: true,
+    },
+    checks: ({ top10, rankOf, find }) => {
+      const notes: string[] = []
+      const rank1 = top10[0]
+      const hordeWins =
+        rank1 &&
+        (rank1.locationId.includes('Gabii') || rank1.locationId.includes('Helene'))
+      notes.push(
+        hordeWins
+          ? `PASS: Horde node wins (${rank1!.locationId})`
+          : `FAIL: Rank 1 is ${rank1?.locationId ?? 'none'} (expected Gabii/Helene)`,
+      )
+
+      if (rank1) {
+        notes.push(`INFO: Top node ETC is ${rank1.etcMinutes.toFixed(1)}m`)
+        // With 4x booster and 2.73x loot modifier (1 + 0.65 + 1.08), yield is high.
+        // Unboosted Ceres - Gabii yield per min at 0.7 skill: 0.09 * (30 + 0.7 * 15) * 1.35 = 4.92 / 100 = 0.049 cells/min.
+        // Boosted yield: 0.049 * 4 * 2.73 = 0.535 cells/min.
+        // For 50 cells, ETC = 50 / 0.535 = 93.4 minutes.
+        notes.push(
+          rank1.etcMinutes < 120.0
+            ? `PASS: Group farm ETC is highly competitive (${rank1.etcMinutes.toFixed(1)}m)`
+            : `FAIL: Group farm ETC is too slow (${rank1.etcMinutes.toFixed(1)}m)`,
+        )
+      }
+
+      const Ruk = find(/Sargas Ruk|Tethys/)
+      const rukRank = rankOf(/Sargas Ruk|Tethys/)
+      if (Ruk) {
+        notes.push(
+          rukRank !== null && rukRank > 10
+            ? `PASS: Boss Sargas Ruk buried at rank #${rukRank} (cost=${Ruk.cost.toFixed(0)}m)`
+            : `FAIL: Boss Sargas Ruk at rank #${rukRank} (cost=${Ruk.cost.toFixed(0)}m) — expected buried`,
+        )
+      } else {
+        notes.push('PASS: Boss Sargas Ruk not in top 10/buried')
+      }
+      return notes
+    },
+  },
+  {
+    id: 11,
+    name: 'The Progression Hard-Lock & Hybrid Path Finder',
+    skill: 0.5,
+    objectives: [
+      { itemName: 'Voidplume Down', targetQuantity: 5 },
+      { itemName: 'Plastids', targetQuantity: 500 },
+    ],
+    arsenal: {
+      hasZarimanUnlocked: false,
+    },
+    checks: ({ ranked, pathingFailures, find, rankOf }) => {
+      const notes: string[] = []
+      const questFail = pathingFailures.some((f) =>
+        f.includes("Pathing Failed: Target requires completion of 'Angels of the Zariman' quest."),
+      )
+      notes.push(
+        questFail
+          ? 'PASS: Fatal routing warning for locked Zariman quest matches exact expectation'
+          : `FAIL: Expected exact Zariman quest lock pathing failure message, got: ${JSON.stringify(pathingFailures)}`,
+      )
+
+      const hasPlastidsNodes =
+        ranked.length > 0 &&
+        ranked.some((n) => n.matchedItems.some((i) => i.itemName === 'Plastids'))
+      notes.push(
+        hasPlastidsNodes
+          ? `PASS: Pipeline successfully returned ${ranked.length} ranked nodes matching Plastids despite quest lock`
+          : 'FAIL: Expected partial success node ranking for Plastids',
+      )
+
+      const ophelia = find(/Ophelia/)
+      const opheliaRank = rankOf(/Ophelia/)
+      if (ophelia) {
+        notes.push(
+          `INFO: Ophelia rank #${opheliaRank} cost=${ophelia.cost.toFixed(1)}m (expected high due to UNFARMABLE_ETC contribution)`
+        )
+        notes.push(
+          ophelia.cost > 90000.0
+            ? 'PASS: Node cost reflects inclusion of UNFARMABLE_ETC for missing objective'
+            : `FAIL: Node cost ${ophelia.cost.toFixed(1)}m did not include UNFARMABLE_ETC contribution`,
+        )
+      }
+      return notes
+    },
+  },
+  {
+    id: 12,
+    name: 'The End-Game Steel Path / Interval Hybrid',
+    skill: 0.9,
+    objectives: [
+      { itemName: 'Steel Essence', targetQuantity: 10 },
+      { itemName: 'Orokin Cell', targetQuantity: 5 },
+    ],
+    arsenal: {
+      steelPathActive: true,
+      hasZarimanUnlocked: true,
+    },
+    checks: ({ top10, find, rankOf }) => {
+      const notes: string[] = []
+      // Let's verify that Steel Path Gabii or similar Ceres/Saturn SP node is ranked highly
+      const steelPathNode = top10.find((n) => n.locationId.includes('Gabii'))
+      notes.push(
+        steelPathNode
+          ? `PASS: Steel Path Gabii found in top 10: rank #${top10.indexOf(steelPathNode) + 1}`
+          : 'FAIL: Steel Path Gabii not found in top 10',
+      )
+
+      // Verify acolyte fixed-interval math for Steel Essence
+      // Yield = 2.0 / 6.0 * 1.0 (booster) = 0.33333 items/min.
+      // For 10 Steel Essence, time = 30.0 minutes.
+      const maliceNode = find(/Enemy - Malice/)
+      if (maliceNode) {
+        const seItem = maliceNode.matchedItems.find(i => i.itemName === 'Steel Essence')
+        if (seItem) {
+          const seYield = seItem.yItem
+          const seTime = 10.0 / seYield
+          const withinBand = Math.abs(seTime - 30.0) < 0.5
+          notes.push(
+            withinBand
+              ? `PASS: Fixed-interval Acolyte spawn calculation is exactly 30.0 minutes (${seTime.toFixed(1)}m)`
+              : `FAIL: Expected exactly 30.0 minutes base spawn time, got ${seTime.toFixed(1)}m`,
+          )
+        }
+      }
+
+      // Verify combined routing cost/etc (30.0m Acolytes, cells finished concurrently at 16.7m -> 30.0m max)
+      if (steelPathNode) {
+        const expectedCombined = 30.0
+        const withinCombinedBand = Math.abs(steelPathNode.etcMinutes - expectedCombined) < 0.5
+        notes.push(
+          withinCombinedBand
+            ? `PASS: Combined Steel Path routing ETC is exactly 30.0 minutes (${steelPathNode.etcMinutes.toFixed(1)}m)`
+            : `FAIL: Expected 30.0 minutes combined ETC, got ${steelPathNode.etcMinutes.toFixed(1)}m`,
+        )
+      }
+      return notes
+    },
+  },
 ]
 
 function main() {

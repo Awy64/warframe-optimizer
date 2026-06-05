@@ -1,16 +1,56 @@
-const ROTATION_MINUTES: Record<string, number> = {
-  A: 5,
-  B: 15,
-  C: 20,
-}
+import telemetry from '../../data/telemetry.json' with { type: 'json' }
 
 export function rotationMinutes(gameMode: string, rotation: string): number {
-  if (rotation in ROTATION_MINUTES) return ROTATION_MINUTES[rotation]
   const mode = gameMode.toLowerCase()
-  if (mode.includes('capture')) return 2.5
-  if (mode.includes('survival') || mode.includes('defense')) {
-    return ROTATION_MINUTES[rotation] ?? 5
+  const baselines = telemetry.missionBaselines
+
+  if (mode.includes('survival')) {
+    const min = baselines.Survival.minutes
+    if (rotation === 'A') return min
+    if (rotation === 'B') return min * 3
+    if (rotation === 'C') return min * 4
+    return min
   }
+
+  if (mode.includes('defense')) {
+    const min = baselines.Defense.casualMinutes
+    if (rotation === 'A') return min
+    if (rotation === 'B') return min * 3
+    if (rotation === 'C') return min * 4
+    return min
+  }
+
+  if (mode.includes('excavation')) {
+    const min = baselines.Excavation.expertMinutes
+    if (rotation === 'A') return min
+    if (rotation === 'B') return min * 3
+    if (rotation === 'C') return min * 4
+    return min
+  }
+
+  if (mode.includes('disruption')) {
+    const min = baselines.Disruption.expertMinutes
+    if (rotation === 'A') return min
+    if (rotation === 'B') return min * 2
+    if (rotation === 'C') return min * 3
+    return min
+  }
+
+  if (mode.includes('capture')) {
+    return baselines.Capture.ttxFloorMinutes
+  }
+
+  if (mode.includes('exterminate')) {
+    return baselines.Exterminate.ttxFloorMinutes
+  }
+
+  // Fallback for others
+  const ROTATION_MINUTES: Record<string, number> = {
+    A: 5,
+    B: 15,
+    C: 20,
+  }
+  if (rotation in ROTATION_MINUTES) return ROTATION_MINUTES[rotation]
   return 5
 }
 

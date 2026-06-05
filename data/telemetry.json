@@ -32,5 +32,14 @@
     "Ortholyst": "UNGATED_ASSASSINATION",
     "Summulyst": "UNGATED_ASSASSINATION",
     "Artificer": "UNGATED_ASSASSINATION"
+  },
+  "missionBaselines": {
+    "Survival": { "type": "strict_rotation", "minutes": 5.0, "rampPenalty": 1.0 },
+    "Defense": { "type": "kpm_rotation", "baseWaves": 5, "expertMinutes": 3.5, "casualMinutes": 6.0 },
+    "Excavation": { "type": "concurrent_rotation", "expertMinutes": 1.5 },
+    "Disruption": { "type": "accelerated_rotation", "expertMinutes": 2.5 },
+    "Capture": { "type": "speedrun", "ttxFloorMinutes": 1.5 },
+    "Exterminate": { "type": "speedrun", "ttxFloorMinutes": 2.0 },
+    "Caches": { "type": "search", "searchFrictionMinutes": 4.0 }
   }
 }

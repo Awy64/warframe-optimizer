@@ -75,6 +75,14 @@ function tagSource(source: DropSource, itemName: string): DropSource {
   if ((eximusItems as string[]).includes(itemName)) tags.push('eximus-loot')
   if (isPrimeComponent(itemName)) tags.push('prime-component')
   if (source.locationId.includes('Zariman')) tags.push('requires-zariman')
+
+  if (itemName === 'Argon Crystal' || itemName === 'Entrati Lanthorn' || itemName.includes('Voidplume')) {
+    tags.push('search-resource')
+  }
+  if (source.locationId.toLowerCase().includes('caches')) {
+    tags.push('caches')
+  }
+
   return tags.length ? { ...source, tags } : source
 }
 

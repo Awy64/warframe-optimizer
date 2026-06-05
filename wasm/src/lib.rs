@@ -19,7 +19,7 @@ use edge_cases::hollvania::hollvania_yield_bonus;
 use edge_cases::omnia::apply_omnia_cost_multiplier;
 use kpm::reference_horde_kpm;
 use loot::calculate_m_loot;
-use prapa::{calculate_etc_cost, calculate_item_yield, skill_allows_tier};
+use prapa::{calculate_etc_cost, calculate_item_yield, skill_allows_tier, is_standard_mission_mode};
 use types::{
     ArsenalState, DropSource, ItemIndex, MatchedItem, NodeLevelsFile, NodeMeta, Objective,
     PrapaEngineResult, RankedNode,
@@ -294,6 +294,30 @@ pub fn compute_ranked_nodes(
         }
     }
 
+    if arsenal.steel_path_active {
+        if let Some(se_objective) = objectives.iter().find(|o| o.item_name == "Steel Essence") {
+            if let Some(sources) = index.items.get("Steel Essence") {
+                if !sources.is_empty() {
+                    let template = &sources[0];
+                    let mut extra_matches = Vec::new();
+                    for (location_id, _) in &node_matches {
+                        if !location_id.starts_with("Enemy -") {
+                            let meta = resolve_node_meta(location_id, &template.game_mode, nodes);
+                            if is_standard_mission_mode(&meta.game_mode) {
+                                let mut source = template.clone();
+                                source.location_id = location_id.clone();
+                                extra_matches.push((location_id.clone(), se_objective.clone(), source));
+                            }
+                        }
+                    }
+                    for (loc_id, obj, src) in extra_matches {
+                        node_matches.entry(loc_id).or_default().push((obj, src));
+                    }
+                }
+            }
+        }
+    }
+
     let pathing_failures = detect_pathing_failures(
         &objectives,
         index,
@@ -318,6 +342,7 @@ pub fn compute_ranked_nodes(
         let mut matched_items: Vec<MatchedItem> = Vec::new();
         let mut seen_sources: HashSet<String> = HashSet::new();
         let mut yields_at_node: HashMap<String, f32> = HashMap::new();
+        let mut gate_times_at_node: HashMap<String, f32> = HashMap::new();
 
         for (objective, source) in &matches {
             let dedupe_key = format!(
@@ -338,11 +363,26 @@ pub fn compute_ranked_nodes(
 
             *yields_at_node.entry(objective.item_name.clone()).or_insert(0.0) += y_item;
 
-            let entry = matched_items
+            // Calculate rotation gate/minimum run time for this source
+            let is_search = source.tags.iter().any(|t| t == "search-resource");
+            let has_caches = source.tags.iter().any(|t| t == "caches");
+            let gate_time = crate::prapa::calculate_min_run_time(
+                &source.game_mode,
+                &source.rotation,
+                skill as f32,
+                is_search,
+                has_caches,
+            );
+            let entry = gate_times_at_node.entry(objective.item_name.clone()).or_insert(0.0);
+            if gate_time > *entry {
+                *entry = gate_time;
+            }
+
+            let entry_matched = matched_items
                 .iter_mut()
                 .find(|m| m.item_name == objective.item_name);
-            if let Some(entry) = entry {
-                entry.y_item += y_item as f64;
+            if let Some(entry_matched) = entry_matched {
+                entry_matched.y_item += y_item as f64;
             } else {
                 matched_items.push(MatchedItem {
                     item_name: objective.item_name.clone(),
@@ -375,10 +415,13 @@ pub fn compute_ranked_nodes(
         }
 
         let node_level = meta.max_enemy_level as f32;
+        let is_endless_fissure = crate::prapa::is_endless_mode(&meta.game_mode) && objective_has_prime;
         let (etc_with_friction, friction) = calculate_etc_cost(
             &objectives,
             &yields_at_node,
             &global_max_yields,
+            &gate_times_at_node,
+            is_endless_fissure,
             node_level,
             skill as f32,
         );

@@ -1,8 +1,19 @@
 import { formatDuration } from '../../lib/formatDuration'
-import type { RoutePlan } from '../../lib/routeItinerary'
+
+interface RouteStep {
+  stepNumber: number
+  locationId: string
+  gameMode: string
+  itemName: string
+  quantity: number
+  estimatedMinutes: number
+  warnings: string[]
+}
 
 interface RouteTimelineProps {
-  plan: RoutePlan
+  plan: {
+    steps: RouteStep[]
+  }
   compact?: boolean
 }
 
@@ -11,53 +22,56 @@ function StepRow({
   isLast,
   compact,
 }: {
-  step: RoutePlan['steps'][number]
+  step: RouteStep
   isLast: boolean
   compact: boolean
 }) {
   return (
-    <li className={`relative flex gap-3 ${compact ? 'pb-4' : 'pb-6'} last:pb-0`}>
+    <li className={`relative flex gap-4.5 ${compact ? 'pb-4' : 'pb-6'} last:pb-0`}>
       {!isLast && (
         <span
-          className="absolute left-[13px] top-7 h-[calc(100%-0.75rem)] w-px bg-orokin-dim/35"
+          className="absolute left-[14px] top-7.5 h-[calc(100%-1rem)] w-0.5 bg-orokin-dim/20 shadow-[0_0_4px_rgba(200,169,81,0.1)]"
           aria-hidden
         />
       )}
 
       <div
-        className={`flex shrink-0 items-center justify-center rounded-full border border-orokin/50 bg-orokin/10 font-bold text-orokin ${
-          compact ? 'h-7 w-7 text-xs' : 'h-8 w-8 text-sm'
+        className={`flex shrink-0 items-center justify-center rounded-full border border-orokin bg-orokin/10 font-extrabold text-orokin shadow-[0_0_8px_rgba(200,169,81,0.2)] ${
+          compact ? 'h-7.5 w-7.5 text-xs' : 'h-8.5 w-8.5 text-sm'
         }`}
       >
         {step.stepNumber}
       </div>
 
       <div
-        className={`min-w-0 flex-1 rounded-lg border border-tenno-border/80 bg-tenno-bg/50 ${
-          compact ? 'p-2.5' : 'p-3'
+        className={`min-w-0 flex-1 rounded-lg border border-tenno-border bg-tenno-panel/20 ${
+          compact ? 'p-3' : 'p-4'
         }`}
       >
-        <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className={`font-semibold text-gray-100 ${compact ? 'text-sm' : ''}`}>
+            <p className={`font-bold text-gray-200 uppercase tracking-wide ${compact ? 'text-xs' : 'text-sm'}`}>
               {step.locationId}
             </p>
-            <p className="text-xs text-tenno-muted">{step.gameMode}</p>
+            <p className="text-[10px] text-tenno-muted uppercase tracking-wider font-semibold mt-0.5">
+              {step.gameMode}
+            </p>
           </div>
-          <span className="shrink-0 text-xs font-medium text-orokin">
+          <span className="shrink-0 text-xs font-bold text-orokin uppercase tracking-wide">
             {formatDuration(step.estimatedMinutes, true)}
           </span>
         </div>
 
-        <p className={`mt-1.5 text-tenno-cyan ${compact ? 'text-xs' : 'text-sm'}`}>
-          Farm {step.quantity}× {step.itemName}
+        <p className={`mt-2 font-bold text-tenno-cyan uppercase tracking-wider ${compact ? 'text-[10px]' : 'text-xs'}`}>
+          Farm {Math.ceil(step.quantity)}× {step.itemName}
         </p>
 
         {step.warnings.length > 0 && (
-          <ul className="mt-1.5 space-y-0.5">
+          <ul className="mt-2 space-y-1 rounded bg-amber-500/5 border border-amber-500/10 p-2">
             {step.warnings.map((warning) => (
-              <li key={warning} className="text-xs text-amber-400/90">
-                {warning}
+              <li key={warning} className="text-[10px] font-semibold text-amber-400 flex items-center gap-1">
+                <span>⚠</span>
+                <span>{warning}</span>
               </li>
             ))}
           </ul>
@@ -69,7 +83,7 @@ function StepRow({
 
 export function RouteTimeline({ plan, compact = false }: RouteTimelineProps) {
   return (
-    <ol className="list-none">
+    <ol className="list-none p-0 m-0">
       {plan.steps.map((step, index) => (
         <StepRow
           key={`${step.stepNumber}-${step.locationId}-${step.itemName}`}
@@ -81,3 +95,4 @@ export function RouteTimeline({ plan, compact = false }: RouteTimelineProps) {
     </ol>
   )
 }
+

@@ -104,3 +104,55 @@ export const DEFAULT_ARSENAL: ArsenalState = {
   hasZarimanUnlocked: true,
   steelPathActive: false,
 }
+
+export interface PrapaInput {
+  objectives: Array<{ itemName: string; targetQuantity: number }>;
+  skillCoefficient: number; // Float 0.1 to 1.0 (Slider)
+  arsenal: {
+    hasIvara: boolean;
+    hasAtlas: boolean;
+    hasKhora: boolean;
+    hasHydroid: boolean;
+    hasNekros: boolean;
+    hasHighSlash: boolean;
+    hasVinquibus: boolean;
+    dropChanceBoosterActive: boolean;
+    resourceBoosterActive: boolean;
+    steelPathActive: boolean;
+    hasZarimanUnlocked: boolean;
+  };
+}
+
+export interface PrapaOutput {
+  summary: { rankedNodeCount: number; optimalRouteCostMinutes: number; optimalRouteTiedNodes: number };
+  pathingFailures?: string[]; // Critical: Array of fatal error strings (e.g., Quest Locks)
+  optimalRoute?: {
+    totalCostMinutes: number;
+    baseEtcMinutes: number;
+    tiedNodeCount: number;
+    primaryPlan: {
+      startingLocationId: string;
+      baseEtcMinutes: number;
+      steps: Array<{
+        stepNumber: number;
+        locationId: string;
+        gameMode: string;
+        itemName: string; 
+        quantity: number;
+        estimatedMinutes: number;
+        warnings: string[];
+      }>;
+    };
+    alternativeStarters?: Array<any>; // Array of tied/alternative plans
+  };
+  rankedNodes: Array<{
+    rank: number;
+    locationId: string;
+    gameMode: string;
+    cost: number;
+    etcMinutes: number;
+    matchedItems: Array<{ itemName: string; yItem: number }>; // yItem = Yield per minute
+    warningsResolved: string[]; // e.g., ["Requires stationary camp"]
+  }>;
+}
+

@@ -1,4 +1,4 @@
-use crate::constants::{ELITE_KPM, KPM_BASE, KPM_SKILL_SCALE, PLANETARY_HORDE_TAG, VINQUIBUS_WEAPON_MULT};
+use crate::constants::{ELITE_KPM, PLANETARY_HORDE_TAG, VINQUIBUS_WEAPON_MULT};
 use crate::drop_type::DropType;
 use crate::types::{ArsenalState, DropSource};
 
@@ -7,7 +7,11 @@ pub fn reference_horde_kpm(skill_coeff: f32, arsenal: &ArsenalState) -> f32 {
 }
 
 fn horde_kpm(skill_coeff: f32, arsenal: &ArsenalState) -> f32 {
-    let skill_kpm = KPM_BASE + (skill_coeff * KPM_SKILL_SCALE);
+    let skill_kpm = if arsenal.steel_path_active {
+        60.0 + (skill_coeff * 70.0)
+    } else {
+        30.0 + (skill_coeff * 15.0)
+    };
     let weapon_multiplier = if arsenal.has_vinquibus {
         VINQUIBUS_WEAPON_MULT
     } else {
@@ -26,7 +30,11 @@ fn is_planetary_horde(source: &DropSource) -> bool {
 pub fn calculate_kpm(skill_coeff: f32, arsenal: &ArsenalState, source: &DropSource) -> f32 {
     if let Some(minutes) = source.time_gate_minutes {
         if minutes > 0.0 {
-            return (1.0 / minutes) as f32;
+            let mut t_run = (minutes as f32 / (skill_coeff * 1.5)).max(1.5);
+            if source.location_id.contains("Vor") || source.location_id.contains("Stalker") {
+                t_run += 5.0;
+            }
+            return 1.0 / t_run;
         }
     }
 
@@ -68,7 +76,17 @@ mod tests {
     fn horde_kpm_on_planetary_heuristic_tag() {
         let a = ArsenalState::default();
         let source = enemy_source(vec![PLANETARY_HORDE_TAG], None);
-        assert!((calculate_kpm(1.0, &a, &source) - 140.0).abs() < 0.01);
+        assert!((calculate_kpm(1.0, &a, &source) - 45.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn horde_kpm_on_steel_path() {
+        let a = ArsenalState {
+            steel_path_active: true,
+            ..Default::default()
+        };
+        let source = enemy_source(vec![PLANETARY_HORDE_TAG], None);
+        assert!((calculate_kpm(1.0, &a, &source) - 130.0).abs() < 0.01);
     }
 
     #[test]
@@ -82,7 +100,9 @@ mod tests {
     fn time_gate_minutes_sets_kills_per_minute() {
         let a = ArsenalState::default();
         let source = enemy_source(vec![], Some(8.0));
-        assert!((calculate_kpm(1.0, &a, &source) - 0.125).abs() < 0.001);
+        // skill_coeff = 1.0, so t_run = (8.0 / 1.5).max(1.5) = 5.3333
+        // KPM = 1.0 / 5.3333 = 0.1875
+        assert!((calculate_kpm(1.0, &a, &source) - 0.1875).abs() < 0.001);
     }
 
     #[test]
@@ -100,6 +120,6 @@ mod tests {
             spawn_interval_minutes: None,
             drop_yield: None,
         };
-        assert!((calculate_kpm(0.1, &a, &source) - 68.0).abs() < 0.01);
+        assert!((calculate_kpm(0.1, &a, &source) - 31.5).abs() < 0.01);
     }
 }

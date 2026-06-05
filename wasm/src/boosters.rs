@@ -6,11 +6,15 @@ pub fn calculate_boosters(arsenal: &ArsenalState) -> f32 {
 }
 
 pub fn calculate_drop_booster(arsenal: &ArsenalState) -> f32 {
-    if arsenal.drop_chance_booster_active {
+    let mut multiplier = if arsenal.drop_chance_booster_active {
         BOOSTER_ACTIVE
     } else {
         BOOSTER_INACTIVE
+    };
+    if arsenal.steel_path_active {
+        multiplier *= 2.0;
     }
+    multiplier
 }
 
 pub fn calculate_resource_booster(arsenal: &ArsenalState) -> f32 {
@@ -52,5 +56,16 @@ mod tests {
     #[test]
     fn both_boosters() {
         assert_eq!(calculate_boosters(&arsenal(true, true)), 4.0);
+    }
+
+    #[test]
+    fn steel_path_adds_drop_booster() {
+        let mut a = arsenal(false, false);
+        a.steel_path_active = true;
+        assert_eq!(calculate_boosters(&a), 2.0);
+        
+        let mut a_both = arsenal(true, true);
+        a_both.steel_path_active = true;
+        assert_eq!(calculate_boosters(&a_both), 8.0);
     }
 }

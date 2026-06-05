@@ -1,53 +1,59 @@
 import { useState } from 'react'
 import { formatDuration } from '../../lib/formatDuration'
-import type { GoldenPath as GoldenPathResult } from '../../lib/routeItinerary'
+import type { RoutePlan } from '../../lib/routeItinerary'
 import { RouteTimeline } from './RouteTimeline'
 
 interface GoldenPathProps {
-  goldenPath: GoldenPathResult
+  goldenPath: {
+    primaryPlan: RoutePlan
+    alternativeStarters: RoutePlan[]
+  }
+  onSelectStarter: (locationId: string) => void
 }
 
-export function GoldenPath({ goldenPath }: GoldenPathProps) {
-  const { primaryPlan, alternativeStarters, tiedNodes } = goldenPath
+export function GoldenPath({ goldenPath, onSelectStarter }: GoldenPathProps) {
+  const { primaryPlan, alternativeStarters } = goldenPath
   const [showAlternatives, setShowAlternatives] = useState(false)
   const totalLabel = formatDuration(primaryPlan.baseEtcMinutes, true)
 
   return (
-    <section className="mb-6 overflow-hidden rounded-xl border border-orokin/40 bg-gradient-to-br from-orokin/10 via-tenno-panel to-tenno-panel shadow-lg shadow-orokin/5">
-      <header className="border-b border-orokin/30 px-4 py-4 sm:px-5">
-        <div className="flex flex-wrap items-start justify-between gap-3">
+    <section className="overflow-hidden rounded-xl border border-orokin/30 bg-gradient-to-b from-tenno-panel/90 to-tenno-panel/40 shadow-lg shadow-black/30">
+      <header className="border-b border-tenno-border px-5 py-4 bg-tenno-panel/50">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-orokin">
-              Golden path
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-orokin">
+              Golden Path
             </p>
-            <h3 className="mt-1 text-xl font-bold text-gray-100">
-              {totalLabel} total route
+            <h3 className="mt-1 text-lg font-extrabold text-gray-100 uppercase tracking-wide">
+              {totalLabel} Route Plan
             </h3>
-            <p className="mt-1 text-sm text-tenno-muted">
-              Start at{' '}
-              <span className="text-gray-200">{primaryPlan.startingLocationId}</span>
+            <p className="mt-1 text-xs text-tenno-muted">
+              Optimal starting location:{' '}
+              <span className="text-tenno-cyan font-bold">{primaryPlan.startingLocationId}</span>
             </p>
           </div>
-          <span className="rounded-full border border-orokin/30 bg-orokin/10 px-3 py-1 text-xs text-orokin">
-            {tiedNodes.length} tied node{tiedNodes.length === 1 ? '' : 's'}
-          </span>
+          {alternativeStarters.length > 0 && (
+            <span className="rounded-full border border-orokin/40 bg-orokin/5 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-orokin">
+              {alternativeStarters.length + 1} Starters Tied
+            </span>
+          )}
         </div>
       </header>
 
-      <div className="px-4 py-4 sm:px-5">
+      <div className="p-5">
         <RouteTimeline plan={primaryPlan} />
 
         {alternativeStarters.length > 0 && (
-          <div className="mt-5 border-t border-orokin-dim/30 pt-4">
+          <div className="mt-5 border-t border-tenno-border pt-4">
             <button
               type="button"
               onClick={() => setShowAlternatives((open) => !open)}
-              className="flex w-full items-center justify-between gap-2 rounded-lg border border-tenno-border/60 bg-tenno-bg/40 px-3 py-2 text-left text-sm text-tenno-cyan transition hover:border-orokin-dim/50 hover:text-orokin"
+              className="flex w-full items-center justify-between gap-2 rounded-lg border border-tenno-border/60 bg-tenno-bg/40 px-3 py-2 text-left text-xs font-bold uppercase tracking-wider text-tenno-cyan hover:border-tenno-cyan/40 hover:text-orokin hover:bg-tenno-cyan/5 transition duration-150"
               aria-expanded={showAlternatives}
             >
               <span>
-                View alternative routes
-                <span className="ml-2 text-xs text-tenno-muted">
+                Alternative Starters Available
+                <span className="ml-2 text-[10px] text-tenno-muted font-normal normal-case">
                   ({alternativeStarters.length} same-time option
                   {alternativeStarters.length === 1 ? '' : 's'})
                 </span>
@@ -58,20 +64,29 @@ export function GoldenPath({ goldenPath }: GoldenPathProps) {
             </button>
 
             {showAlternatives && (
-              <div className="mt-3 space-y-4">
+              <div className="mt-3 space-y-3">
                 {alternativeStarters.map((plan) => (
-                  <div
+                  <button
                     key={plan.startingLocationId}
-                    className="rounded-lg border border-tenno-border/50 bg-tenno-bg/30 p-3"
+                    type="button"
+                    onClick={() => onSelectStarter(plan.startingLocationId)}
+                    className="w-full text-left rounded-lg border border-tenno-border bg-tenno-bg/20 p-3 hover:border-tenno-cyan/40 hover:bg-tenno-cyan/5 transition duration-150 cursor-pointer group block"
                   >
-                    <p className="mb-3 text-sm font-medium text-gray-200">
-                      Start at {plan.startingLocationId}
-                      <span className="ml-2 text-xs font-normal text-tenno-muted">
-                        ({formatDuration(plan.baseEtcMinutes, true)} total)
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-semibold text-gray-200 group-hover:text-tenno-cyan transition">
+                        Start at {plan.startingLocationId}
+                        <span className="ml-2 text-[10px] font-normal text-tenno-muted">
+                          ({formatDuration(plan.baseEtcMinutes, true)} total)
+                        </span>
+                      </p>
+                      <span className="text-[10px] font-bold text-tenno-cyan uppercase tracking-wider opacity-0 group-hover:opacity-100 transition duration-150">
+                        Select Route &rarr;
                       </span>
-                    </p>
-                    <RouteTimeline plan={plan} compact />
-                  </div>
+                    </div>
+                    <div className="mt-2.5">
+                      <RouteTimeline plan={plan} compact />
+                    </div>
+                  </button>
                 ))}
               </div>
             )}
@@ -81,3 +96,4 @@ export function GoldenPath({ goldenPath }: GoldenPathProps) {
     </section>
   )
 }
+

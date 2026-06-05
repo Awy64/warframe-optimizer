@@ -5,6 +5,9 @@ use crate::constants::{
     COMFORT_LEVEL_SCALE, DEFAULT_ACOLYTE_DROP_YIELD, DEFAULT_ACOLYTE_SPAWN_MINUTES,
     FRICTION_COEFF, FRICTION_EXPONENT, INTERMEDIATE_SKILL_GATE, INTERVAL_SPAWN_TAG,
     EXPERT_SKILL_GATE,
+    SURVIVAL_ROTATION_MINUTES, DEFENSE_CASUAL_ROTATION_MINUTES, DEFENSE_EXPERT_ROTATION_MINUTES,
+    EXCAVATION_EXPERT_ROTATION_MINUTES, DISRUPTION_EXPERT_ROTATION_MINUTES,
+    CAPTURE_TTX_FLOOR_MINUTES, EXTERMINATE_TTX_FLOOR_MINUTES, CACHES_SEARCH_FRICTION_MINUTES,
 };
 use crate::kpm::calculate_kpm;
 use crate::types::{ArsenalState, DropSource, Objective};
@@ -30,6 +33,87 @@ pub fn skill_allows_tier(skill: f64, tier: &str) -> bool {
     }
 }
 
+pub fn is_endless_mode(mode: &str) -> bool {
+    let m = mode.to_lowercase();
+    m.contains("survival") || m.contains("defense") || m.contains("excavation") || m.contains("disruption") || m.contains("cascade")
+}
+
+pub fn is_standard_mission_mode(mode: &str) -> bool {
+    let m = mode.to_lowercase();
+    m.contains("survival")
+        || m.contains("defense")
+        || m.contains("excavation")
+        || m.contains("disruption")
+        || m.contains("cascade")
+        || m.contains("capture")
+        || m.contains("exterminate")
+        || m.contains("sabotage")
+}
+
+pub fn calculate_min_run_time(
+    game_mode: &str,
+    rotation: &str,
+    skill_coeff: f32,
+    is_search_item: bool,
+    has_caches_tag: bool,
+) -> f32 {
+    if !is_standard_mission_mode(game_mode) {
+        return 0.0;
+    }
+
+    let mode = game_mode.to_lowercase();
+    let rot = rotation.to_uppercase();
+
+    let search_friction = if is_search_item || has_caches_tag {
+        12.5 - (12.5 - CACHES_SEARCH_FRICTION_MINUTES) * skill_coeff
+    } else {
+        0.0
+    };
+
+    if is_endless_mode(&mode) {
+        let rot_time = if mode.contains("survival") {
+            SURVIVAL_ROTATION_MINUTES
+        } else if mode.contains("defense") {
+            DEFENSE_CASUAL_ROTATION_MINUTES - (DEFENSE_CASUAL_ROTATION_MINUTES - DEFENSE_EXPERT_ROTATION_MINUTES) * skill_coeff
+        } else if mode.contains("excavation") {
+            5.0 - (5.0 - EXCAVATION_EXPERT_ROTATION_MINUTES) * skill_coeff
+        } else if mode.contains("disruption") {
+            5.0 - (5.0 - DISRUPTION_EXPERT_ROTATION_MINUTES) * skill_coeff
+        } else if mode.contains("cascade") {
+            4.0 - (4.0 - 2.5) * skill_coeff
+        } else {
+            5.0
+        };
+
+        let multiplier = match rot.as_str() {
+            "A" => 1.0,
+            "B" => if mode.contains("disruption") { 2.0 } else { 3.0 },
+            "C" => if mode.contains("disruption") { 3.0 } else { 4.0 },
+            _ => 1.0,
+        };
+
+        let gate_time = rot_time * multiplier;
+        if is_search_item || has_caches_tag {
+            gate_time.max(search_friction)
+        } else {
+            gate_time
+        }
+    } else {
+        // Speedrun
+        let base_run_time = if mode.contains("capture") {
+            let actual = 3.0 - (3.0 - 1.75) * skill_coeff;
+            actual.max(CAPTURE_TTX_FLOOR_MINUTES)
+        } else if mode.contains("exterminate") {
+            let actual = 4.5 - (4.5 - 2.5) * skill_coeff;
+            actual.max(EXTERMINATE_TTX_FLOOR_MINUTES)
+        } else {
+            let actual = 3.5 - (3.5 - 2.0) * skill_coeff;
+            actual.max(2.0)
+        };
+        base_run_time + search_friction
+    }
+}
+
 /// Per-item projected yield for a single drop source at a node.
 pub fn calculate_item_yield(
     source: &DropSource,
@@ -52,6 +136,36 @@ pub fn calculate_item_yield(
         return (yield_per_spawn / interval) * resource_booster;
     }
 
+    let is_search = source.tags.iter().any(|t| t == "search-resource");
+    if is_search {
+        let has_caches = source.tags.iter().any(|t| t == "caches");
+        let loc = source.location_id.to_lowercase();
+        let is_standard = if loc.contains("plains of eidolon") || loc.contains("orb vallis") || loc.contains("cambion drift") {
+            false
+        } else {
+            is_standard_mission_mode(&source.game_mode)
+        };
+        if is_standard {
+            let run_time = calculate_min_run_time(
+                &source.game_mode,
+                &source.rotation,
+                skill_coeff,
+                is_search,
+                has_caches,
+            );
+            if run_time <= 0.0 {
+                return 0.0;
+            }
+            let boosters = calculate_boosters(arsenal);
+            let p_base = (source.base_chance / 100.0) as f32;
+            // Crate resources do NOT scale with m_loot (loot frames)
+            return p_base / run_time * boosters;
+        } else {
+            let boosters = calculate_boosters(arsenal);
+            return (source.tadr as f32 / 100.0) * boosters;
+        }
+    }
+
     if source.drop_type.uses_kpm_path() {
         let kpm = calculate_kpm(skill_coeff, arsenal, source);
         let boosters = calculate_boosters(arsenal);
@@ -60,7 +174,34 @@ pub fn calculate_item_yield(
     } else {
         // Mission/bounty tables: TADR is percent-per-minute; convert to expected items/min.
         let resource_booster = calculate_resource_booster(arsenal);
-        (source.tadr as f32 / 100.0) * resource_booster
+        let loc = source.location_id.to_lowercase();
+        let is_standard = if loc.contains("plains of eidolon") || loc.contains("orb vallis") || loc.contains("cambion drift") {
+            false
+        } else {
+            is_standard_mission_mode(&source.game_mode)
+        };
+        if is_standard {
+            let has_caches = source.tags.iter().any(|t| t == "caches");
+            let run_time = calculate_min_run_time(
+                &source.game_mode,
+                &source.rotation,
+                skill_coeff,
+                false,
+                has_caches,
+            );
+            if run_time <= 0.0 {
+                return 0.0;
+            }
+            let p_base = (source.base_chance / 100.0) as f32;
+            let booster = if source.tags.iter().any(|t| t == "prime-component") {
+                1.0
+            } else {
+                resource_booster
+            };
+            p_base / run_time * booster
+        } else {
+            (source.tadr as f32 / 100.0) * resource_booster
+        }
     }
 }
 
@@ -70,6 +211,8 @@ pub fn calculate_etc_cost(
     cart: &[Objective],
     yields_at_node: &HashMap<String, f32>,
     global_max_yields: &HashMap<String, f32>,
+    gate_times_at_node: &HashMap<String, f32>,
+    is_endless_fissure: bool,
     node_level: f32,
     skill_coeff: f32,
 ) -> (f32, f32) {
@@ -85,7 +228,20 @@ pub fn calculate_etc_cost(
         }
 
         let q_target = target.target_quantity as f32;
-        let time_spent_here = q_target / y_target;
+        let mut time_spent_here = q_target / y_target;
+
+        // Apply endless fissure resource escalation
+        if is_endless_fissure && !target.item_name.contains("Prime") {
+            if time_spent_here > 20.0 {
+                time_spent_here = time_spent_here / 2.0 + 10.0;
+            }
+        }
+
+        // Apply minimum rotation gate time floor
+        let gate_time = gate_times_at_node.get(&target.item_name).copied().unwrap_or(0.0);
+        if gate_time > 0.0 {
+            time_spent_here = time_spent_here.max(gate_time);
+        }
 
         let mut remaining_etc = 0.0_f32;
         for cart_item in cart {
@@ -203,11 +359,12 @@ mod tests {
 
         let mut gabii = HashMap::new();
         gabii.insert("Orokin Cell".to_string(), 16.8_f32);
-        let (gabii_etc, _) = calculate_etc_cost(&cart, &gabii, &global_max, 20.0, 1.0);
+        let gate_times = HashMap::new();
+        let (gabii_etc, _) = calculate_etc_cost(&cart, &gabii, &global_max, &gate_times, false, 20.0, 1.0);
 
         let mut ani = HashMap::new();
         ani.insert("Argon Crystal".to_string(), 2.5_f32);
-        let (ani_etc, _) = calculate_etc_cost(&cart, &ani, &global_max, 20.0, 1.0);
+        let (ani_etc, _) = calculate_etc_cost(&cart, &ani, &global_max, &gate_times, false, 20.0, 1.0);
 
         assert!((gabii_etc - 4.59).abs() < 0.05);
         assert!((ani_etc - 4.59).abs() < 0.05);
@@ -224,11 +381,12 @@ mod tests {
         let mut formido = HashMap::new();
         formido.insert("Orokin Cell".to_string(), 1.15_f32);
         formido.insert("Argon Crystal".to_string(), 1.15_f32);
-        let (formido_etc, _) = calculate_etc_cost(&cart, &formido, &global_max, 20.0, 1.0);
+        let gate_times = HashMap::new();
+        let (formido_etc, _) = calculate_etc_cost(&cart, &formido, &global_max, &gate_times, false, 20.0, 1.0);
 
         let mut gabii = HashMap::new();
         gabii.insert("Orokin Cell".to_string(), 16.8_f32);
-        let (gabii_etc, _) = calculate_etc_cost(&cart, &gabii, &global_max, 20.0, 1.0);
+        let (gabii_etc, _) = calculate_etc_cost(&cart, &gabii, &global_max, &gate_times, false, 20.0, 1.0);
 
         assert!((formido_etc - 8.69).abs() < 0.05);
         assert!(formido_etc > gabii_etc * 1.8);
@@ -243,8 +401,9 @@ mod tests {
         let global_max = HashMap::from([("Orokin Cell".to_string(), 16.8_f32)]);
         let mut node = HashMap::new();
         node.insert("Orokin Cell".to_string(), 16.8_f32);
+        let gate_times = HashMap::new();
 
-        let (etc, _) = calculate_etc_cost(&cart, &node, &global_max, 20.0, 1.0);
+        let (etc, _) = calculate_etc_cost(&cart, &node, &global_max, &gate_times, false, 20.0, 1.0);
         assert!((etc - (10.0 / 16.8)).abs() < 0.001);
     }
 
@@ -291,9 +450,13 @@ mod tests {
     #[test]
     fn time_gated_enemy_uses_build_time_ttk_overlay() {
         let arsenal = ArsenalState::default();
-        let source = enemy_source(50.0, Some(8.0), false);
+        let source = enemy_source(50.0, Some(8.0), false); // Location contains "Corrupted Vor"
         let yield_val = calculate_item_yield(&source, 1.0, 1.0, 1.0, &arsenal);
-        let expected = (1.0 / 8.0) * 0.5;
+        // skill = 1.0, so base t_run = (8.0 / 1.5).max(1.5) = 5.3333
+        // Since location has "Vor", t_run = 5.3333 + 5.0 = 10.3333
+        // KPM = 1 / 10.3333 = 0.096774
+        // expected yield = 0.096774 * 0.5 = 0.048387
+        let expected = 0.048387;
         assert!((yield_val - expected).abs() < 0.001);
     }
 
