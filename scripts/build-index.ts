@@ -423,6 +423,12 @@ async function main() {
     'Lephantis': ['Deimos - Magnacidium'],
   }
 
+  const IGNORED_ENTITIES = new Set([
+    'Misery', 'Angst', 'Torment', 'Malice', 'Violence', 'Mania', // Acolytes
+    'Stalker', 'Shadow Stalker', 'Protector Stalker', // Assassins
+    'Zanuka Hunter', 'The Grustrag Three' // Death Squads
+  ])
+
   const successfullyMappedEnemies = new Set<string>()
 
   for (const [itemName, sources] of Object.entries(index)) {
@@ -473,12 +479,12 @@ async function main() {
   const finalNodes = nodes.filter((node) => {
     if (node.locationId.startsWith('Enemy - ') || node.locationId.startsWith('Boss - ')) {
       const baseName = extractBaseName(node.locationId)
-      if (successfullyMappedEnemies.has(baseName)) {
+      if (successfullyMappedEnemies.has(baseName) || IGNORED_ENTITIES.has(baseName)) {
+        // Successfully mapped OR intentionally ignored dynamic invader. Delete it quietly.
         return false
       } else {
-        console.warn(
-          `[PRAPA MAINTENANCE ALERT] Unmapped Entity detected: "${baseName}". It will appear as a ghost node in the UI. Please add it to ENEMY_SPAWN_MAPPINGS.`,
-        )
+        // Unmapped entity that isn't on the ignore list. Trip the alarm!
+        console.warn(`[PRAPA MAINTENANCE ALERT] Unmapped Entity detected: "${baseName}".`)
         return true
       }
     }
