@@ -15,10 +15,31 @@ function consolidateSteps(steps: RouteStep[]): RouteStep[] {
       existing.estimatedMinutes = Math.max(existing.estimatedMinutes, step.estimatedMinutes)
       existing.quantity = Math.max(existing.quantity, step.quantity)
       existing.warnings = Array.from(new Set([...existing.warnings, ...step.warnings]))
+      if (existing.items && step.items) {
+        existing.items.push(...step.items)
+      }
     } else {
-      const stepCopy = { ...step }
+      const stepCopy = {
+        ...step,
+        items: step.items ? [...step.items] : undefined,
+      }
       consolidated.push(stepCopy)
       seen.set(step.locationId, stepCopy)
+    }
+  }
+
+  // Merge items with the same itemName within each consolidated step and update itemName
+  for (const step of consolidated) {
+    if (step.items && step.items.length > 0) {
+      const itemMap = new Map<string, number>()
+      for (const item of step.items) {
+        itemMap.set(item.itemName, (itemMap.get(item.itemName) ?? 0) + item.quantity)
+      }
+      step.items = Array.from(itemMap.entries()).map(([itemName, quantity]) => ({
+        itemName,
+        quantity,
+      }))
+      step.itemName = step.items.map(item => item.itemName).join(', ')
     }
   }
 
@@ -34,6 +55,11 @@ export interface ItemBestNode {
   node: RankedNode
 }
 
+export interface RouteStepItem {
+  itemName: string
+  quantity: number
+}
+
 export interface RouteStep {
   stepNumber: number
   locationId: string
@@ -42,6 +68,7 @@ export interface RouteStep {
   quantity: number
   estimatedMinutes: number
   warnings: string[]
+  items?: RouteStepItem[]
 }
 
 export interface RoutePlan {
@@ -141,6 +168,20 @@ export function simulateRoutePlan(
   const yPrimary = yields.get(bestTarget) ?? 0
   const primaryMinutes = primaryObjective.targetQuantity / yPrimary
 
+  const startNodeItems: RouteStepItem[] = []
+  for (const item of objectives) {
+    const yj = yields.get(item.itemName) ?? 0
+    if (yj > 0) {
+      const farmed = Math.min(item.targetQuantity, yj * primaryMinutes)
+      if (farmed >= 0.0001) {
+        startNodeItems.push({
+          itemName: item.itemName,
+          quantity: farmed,
+        })
+      }
+    }
+  }
+
   const steps: RouteStep[] = [
     {
       stepNumber: 1,
@@ -150,6 +191,7 @@ export function simulateRoutePlan(
       quantity: primaryObjective.targetQuantity,
       estimatedMinutes: primaryMinutes,
       warnings: supplementWarnings(startNode),
+      items: startNodeItems,
     },
   ]
 
@@ -172,6 +214,7 @@ export function simulateRoutePlan(
       quantity: qRemaining,
       estimatedMinutes: qRemaining / best.yield,
       warnings: supplementWarnings(best.node),
+      items: [{ itemName: item.itemName, quantity: qRemaining }],
     })
   }
 

@@ -95,6 +95,7 @@ export function usePrapaEngine() {
                     quantity: step.quantity,
                     estimatedMinutes: step.estimatedMinutes,
                     warnings: step.warnings,
+                    items: step.items,
                   })),
                 },
                 alternativeStarters: goldenPath.alternativeStarters,

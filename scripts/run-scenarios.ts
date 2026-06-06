@@ -563,7 +563,10 @@ const SCENARIOS: Scenario[] = [
         const steps = path.primaryPlan.steps
         notes.push(`INFO: Steps count: ${steps.length}`)
         for (const s of steps) {
-          notes.push(`  Step #${s.stepNumber}: location=${s.locationId} items=${s.itemName} min=${s.estimatedMinutes.toFixed(1)}`)
+          const itemsStr = s.items
+            ? s.items.map(i => `${i.itemName} (qty ${i.quantity.toFixed(2)})`).join(', ')
+            : s.itemName
+          notes.push(`  Step #${s.stepNumber}: location=${s.locationId} items=[${itemsStr}] min=${s.estimatedMinutes.toFixed(1)}`)
         }
 
         const hasMot = steps.some(s => s.locationId === 'Void - Mot')
@@ -579,6 +582,31 @@ const SCENARIOS: Scenario[] = [
             ? 'PASS: Simultaneous steps consolidated by locationId'
             : 'FAIL: Detected duplicate locationIds in steps'
         )
+
+        const motStep = steps.find(s => s.locationId === 'Void - Mot')
+        if (motStep) {
+          const argon = motStep.items?.find(i => i.itemName === 'Argon Crystal')
+          const cell = motStep.items?.find(i => i.itemName === 'Orokin Cell')
+          if (argon && cell && Math.abs(argon.quantity - 5) < 0.01 && cell.quantity > 1.5 && cell.quantity < 1.7) {
+            notes.push('PASS: Void - Mot step contains correct quantities for Argon Crystal and Orokin Cell')
+          } else {
+            notes.push(`FAIL: Void - Mot step quantities incorrect. Argon: ${argon?.quantity}, Orokin Cell: ${cell?.quantity}`)
+          }
+        } else {
+          notes.push('FAIL: Void - Mot step not found')
+        }
+
+        const gabiiStep = steps.find(s => s.locationId === 'Ceres - Gabii')
+        if (gabiiStep) {
+          const cell = gabiiStep.items?.find(i => i.itemName === 'Orokin Cell')
+          if (cell && cell.quantity > 3.3 && cell.quantity < 3.5) {
+            notes.push('PASS: Ceres - Gabii step contains correct remaining quantity for Orokin Cell')
+          } else {
+            notes.push(`FAIL: Ceres - Gabii step quantities incorrect. Orokin Cell: ${cell?.quantity}`)
+          }
+        } else {
+          notes.push('FAIL: Ceres - Gabii step not found')
+        }
       } else {
         notes.push('FAIL: No golden path found')
       }

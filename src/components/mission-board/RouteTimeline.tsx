@@ -8,6 +8,7 @@ interface RouteStep {
   quantity: number
   estimatedMinutes: number
   warnings: string[]
+  items?: Array<{ itemName: string; quantity: number }>
 }
 
 interface RouteTimelineProps {
@@ -63,7 +64,10 @@ function StepRow({
         </div>
 
         <p className={`mt-2 font-bold text-tenno-cyan uppercase tracking-wider ${compact ? 'text-[10px]' : 'text-xs'}`}>
-          Farm {Math.ceil(step.quantity)}× {step.itemName}
+          Farm{' '}
+          {step.items && step.items.length > 0
+            ? step.items.map((item) => `${Math.ceil(item.quantity)}× ${item.itemName}`).join(', ')
+            : `${Math.ceil(step.quantity)}× ${step.itemName}`}
         </p>
 
         {step.warnings.length > 0 && (

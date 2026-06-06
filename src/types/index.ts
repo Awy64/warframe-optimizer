@@ -144,6 +144,7 @@ export interface PrapaOutput {
         quantity: number;
         estimatedMinutes: number;
         warnings: string[];
+        items?: Array<{ itemName: string; quantity: number }>;
       }>;
     };
     alternativeStarters?: Array<any>; // Array of tied/alternative plans
