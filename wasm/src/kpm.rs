@@ -39,7 +39,10 @@ pub fn calculate_kpm(skill_coeff: f32, arsenal: &ArsenalState, source: &DropSour
     if let Some(minutes) = source.time_gate_minutes {
         if minutes > 0.0 {
             let mut t_run = (minutes as f32 / (skill_coeff * 1.5)).max(1.5);
-            if source.location_id.contains("Vor") || source.location_id.contains("Stalker") {
+            if source.location_id.contains("Vor")
+                || source.location_id.contains("Stalker")
+                || source.tags.iter().any(|t| t == "Vor" || t == "Stalker")
+            {
                 t_run += 5.0;
             }
             return 1.0 / t_run;

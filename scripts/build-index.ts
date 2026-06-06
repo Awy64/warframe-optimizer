@@ -402,6 +402,45 @@ async function main() {
 
   tagSteelPathSources(index)
 
+  const ENEMY_SPAWN_MAPPINGS: Record<string, string[]> = {
+    'Oxium Osprey': ['Jupiter - Io', 'Pluto - Outer Terminus'],
+    'Vapos Oxium Osprey': ['Jupiter - Io'],
+    'Juno Oxium Osprey': ['Pluto - Outer Terminus'],
+    'Carabus': ['Sedna - Hydron', 'Saturn - Helene'],
+    'Nemes': ['Jupiter - Io'],
+    'Narmer Oxium Osprey': ['Fortuna Bounty - Level 40 - 60 Orb Vallis Bounty'],
+
+    'Corrupted Vor': ['Void - Mot'],
+    'Ambulas': ['Pluto - Hades'],
+    'Kela De Thaym': ['Sedna - Merrow'],
+    'General Sargas Ruk': ['Saturn - Tethys'],
+    'Tyl Regor': ['Uranus - Titania'],
+    'Jackal': ['Venus - Fossa'],
+    'Lephantis': ['Deimos - Magnacidium'],
+  }
+
+  for (const [itemName, sources] of Object.entries(index)) {
+    const updatedSources: DropSource[] = []
+    for (const source of sources) {
+      const enemyName = source.locationId.replace(/^(Enemy|Boss) - /, '')
+      if (ENEMY_SPAWN_MAPPINGS[enemyName]) {
+        for (const physicalNode of ENEMY_SPAWN_MAPPINGS[enemyName]) {
+          const tags = [...(source.tags ?? [])]
+          if (enemyName.includes('Vor')) tags.push('Vor')
+          if (enemyName.includes('Stalker')) tags.push('Stalker')
+          updatedSources.push({
+            ...source,
+            locationId: physicalNode,
+            tags,
+          })
+        }
+      } else {
+        updatedSources.push(source)
+      }
+    }
+    index[itemName] = updatedSources
+  }
+
   dedupeAndMergeItemSources(index)
   validateIndex(index)
   const itemNames = Object.keys(index).sort((a, b) => a.localeCompare(b))

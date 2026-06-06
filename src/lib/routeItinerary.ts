@@ -3,15 +3,6 @@ import type { Objective, RankedNode } from '../types'
 
 export const ETC_TIE_EPSILON = 0.001
 
-function rewriteLocationId(locationId: string): string {
-  if (locationId.includes('Oxium Osprey')) {
-    return 'Jupiter - Io (Corpus Defense)'
-  }
-  if (locationId.includes('Corrupted Vor')) {
-    return 'Void - Mot'
-  }
-  return locationId
-}
 
 function consolidateSteps(steps: RouteStep[]): RouteStep[] {
   const consolidated: RouteStep[] = []
@@ -153,7 +144,7 @@ export function simulateRoutePlan(
   const steps: RouteStep[] = [
     {
       stepNumber: 1,
-      locationId: rewriteLocationId(startNode.locationId),
+      locationId: startNode.locationId,
       gameMode: startNode.gameMode,
       itemName: bestTarget,
       quantity: primaryObjective.targetQuantity,
@@ -175,7 +166,7 @@ export function simulateRoutePlan(
 
     cleanup.push({
       stepNumber: 0,
-      locationId: rewriteLocationId(best.node.locationId),
+      locationId: best.node.locationId,
       gameMode: best.node.gameMode,
       itemName: item.itemName,
       quantity: qRemaining,
@@ -193,7 +184,7 @@ export function simulateRoutePlan(
   const consolidated = consolidateSteps(steps)
 
   return {
-    startingLocationId: rewriteLocationId(startNode.locationId),
+    startingLocationId: startNode.locationId,
     baseEtcMinutes: startNode.etcMinutes,
     finalCostMinutes: startNode.cost,
     steps: consolidated,

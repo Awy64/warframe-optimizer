@@ -472,7 +472,11 @@ pub fn compute_ranked_nodes(
         });
     }
 
-    ranked.sort_by(|a, b| a.cost.partial_cmp(&b.cost).unwrap_or(std::cmp::Ordering::Equal));
+    ranked.sort_by(|a, b| {
+        a.cost.partial_cmp(&b.cost)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| a.location_id.cmp(&b.location_id))
+    });
 
     let result = PrapaEngineResult {
         ranked_nodes: ranked,
