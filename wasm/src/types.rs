@@ -7,6 +7,10 @@ fn default_true() -> bool {
     true
 }
 
+fn default_squad_size() -> u8 {
+    4
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ArsenalState {
@@ -23,6 +27,8 @@ pub struct ArsenalState {
     pub has_zariman_unlocked: bool,
     #[serde(default)]
     pub steel_path_active: bool,
+    #[serde(default = "default_squad_size")]
+    pub squad_size: u8,
 }
 
 impl Default for ArsenalState {
@@ -39,6 +45,7 @@ impl Default for ArsenalState {
             resource_booster_active: false,
             has_zariman_unlocked: true,
             steel_path_active: false,
+            squad_size: 4,
         }
     }
 }

@@ -17,7 +17,15 @@ fn horde_kpm(skill_coeff: f32, arsenal: &ArsenalState) -> f32 {
     } else {
         1.0
     };
-    skill_kpm * weapon_multiplier
+    let mut base_kpm = skill_kpm * weapon_multiplier;
+
+    if arsenal.squad_size == 1 && !arsenal.steel_path_active {
+        base_kpm *= 0.60;
+    } else if arsenal.squad_size == 2 && !arsenal.steel_path_active {
+        base_kpm *= 0.75;
+    }
+
+    base_kpm
 }
 
 fn is_planetary_horde(source: &DropSource) -> bool {
@@ -121,5 +129,37 @@ mod tests {
             drop_yield: None,
         };
         assert!((calculate_kpm(0.1, &a, &source) - 31.5).abs() < 0.01);
+    }
+
+    #[test]
+    fn solo_and_duo_spawn_starvation_penalties() {
+        let source = enemy_source(vec![PLANETARY_HORDE_TAG], None);
+
+        // Solo squad size = 1, non-Steel Path. Base KPM = 30.0 + 1.0 * 15.0 = 45.0.
+        // Rule A solo penalty: 45.0 * 0.60 = 27.0
+        let a_solo = ArsenalState {
+            squad_size: 1,
+            steel_path_active: false,
+            ..Default::default()
+        };
+        assert!((calculate_kpm(1.0, &a_solo, &source) - 27.0).abs() < 0.01);
+
+        // Duo squad size = 2, non-Steel Path.
+        // Rule A duo penalty: 45.0 * 0.75 = 33.75
+        let a_duo = ArsenalState {
+            squad_size: 2,
+            steel_path_active: false,
+            ..Default::default()
+        };
+        assert!((calculate_kpm(1.0, &a_duo, &source) - 33.75).abs() < 0.01);
+
+        // Steel path ignores starvation.
+        // Base Steel Path KPM = 60.0 + 1.0 * 70.0 = 130.0. No penalty!
+        let a_sp = ArsenalState {
+            squad_size: 1,
+            steel_path_active: true,
+            ..Default::default()
+        };
+        assert!((calculate_kpm(1.0, &a_sp, &source) - 130.0).abs() < 0.01);
     }
 }

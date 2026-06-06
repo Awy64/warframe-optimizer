@@ -50,6 +50,29 @@ export const useOptimizerStore = create<OptimizerState>((set, get) => ({
     const next = { ...get().arsenal, ...partial }
     if (next.hasAtlas) next.hasKhora = false
     if (next.hasHydroid) next.hasKhora = false
+
+    if (next.squadSize === 1) {
+      const frames: Array<keyof ArsenalState> = ['hasIvara', 'hasAtlas', 'hasKhora', 'hasHydroid', 'hasNekros']
+      const changedFrame = frames.find(f => f in partial && partial[f] === true)
+      if (changedFrame) {
+        for (const f of frames) {
+          if (f !== changedFrame) {
+            (next as any)[f] = false
+          }
+        }
+      } else {
+        let foundActive = false
+        for (const f of frames) {
+          if (next[f]) {
+            if (foundActive) {
+              (next as any)[f] = false
+            } else {
+              foundActive = true
+            }
+          }
+        }
+      }
+    }
     set({ arsenal: next })
   },
 

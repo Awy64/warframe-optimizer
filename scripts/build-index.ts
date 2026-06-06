@@ -412,6 +412,18 @@ async function main() {
     for (const s of sources) ensureNodeMeta(nodeLevels.nodes, s)
   }
 
+  const nodes = Object.values(nodeLevels.nodes)
+  for (const node of nodes) {
+    if (node.gameMode === 'Bounty' || node.locationId.includes('Bounty')) {
+      // Extract the highest level from strings like "Level 40 - 60" or "Level 100 - 100"
+      const levelMatch = node.locationId.match(/Level\s+\d+\s*-\s*(\d+)/i)
+
+      if (levelMatch && levelMatch[1]) {
+        node.maxEnemyLevel = parseInt(levelMatch[1], 10)
+      }
+    }
+  }
+
   propagateDescendiaTags(nodeLevels.nodes)
 
   mkdirSync(PUBLIC, { recursive: true })

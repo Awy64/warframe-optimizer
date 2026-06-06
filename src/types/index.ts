@@ -62,6 +62,7 @@ export interface ArsenalState {
   resourceBoosterActive: boolean
   hasZarimanUnlocked: boolean
   steelPathActive: boolean
+  squadSize: number
 }
 
 export interface PrapaEngineResult {
@@ -103,6 +104,7 @@ export const DEFAULT_ARSENAL: ArsenalState = {
   resourceBoosterActive: false,
   hasZarimanUnlocked: true,
   steelPathActive: false,
+  squadSize: 4,
 }
 
 export interface PrapaInput {
@@ -120,6 +122,7 @@ export interface PrapaInput {
     resourceBoosterActive: boolean;
     steelPathActive: boolean;
     hasZarimanUnlocked: boolean;
+    squadSize: number;
   };
 }
 

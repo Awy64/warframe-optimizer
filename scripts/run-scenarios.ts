@@ -7,6 +7,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { initSync, init_engine, compute_ranked_nodes } from '../wasm/pkg/warframe_prapa_wasm.js'
+import { buildGoldenPath } from '../src/lib/routeItinerary.js'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -77,6 +78,7 @@ const DEFAULT_ARSENAL = {
   resourceBoosterActive: false,
   hasZarimanUnlocked: true,
   steelPathActive: false,
+  squadSize: 4,
 }
 
 function parseEngineResult(raw: string): PrapaEngineResult {
@@ -522,6 +524,66 @@ const SCENARIOS: Scenario[] = [
       }
       return notes
     },
+  },
+  {
+    id: 13,
+    name: 'Squad Size Physics & Concurrency Constraints (Solo vs Squad)',
+    skill: 0.5,
+    objectives: [{ itemName: 'Serration', targetQuantity: 1 }],
+    arsenal: { squadSize: 1 },
+    checks: ({ top10, ranked }) => {
+      const notes: string[] = []
+      const soloExc = ranked.find((n) => n.gameMode === 'Excavation')
+      if (soloExc) {
+        notes.push(`INFO: Solo Excavation Node: ${soloExc.locationId} cost=${soloExc.cost.toFixed(1)}m etc=${soloExc.etcMinutes.toFixed(1)}m`)
+        notes.push(
+          soloExc.etcMinutes >= 5.5
+            ? 'PASS: Solo Excavation carries 1.75x objective concurrency penalty'
+            : `FAIL: Solo Excavation ETC is too low: ${soloExc.etcMinutes}m`
+        )
+      } else {
+        notes.push('WARN: No Excavation node found in results')
+      }
+      return notes
+    }
+  },
+  {
+    id: 14,
+    name: 'TypeScript Wrapper Formatting (Consolidation & Translation)',
+    skill: 0.5,
+    objectives: [
+      { itemName: 'Orokin Cell', targetQuantity: 5 },
+      { itemName: 'Argon Crystal', targetQuantity: 5 },
+    ],
+    checks: ({ ranked, scenario }) => {
+      const notes: string[] = []
+      const path = buildGoldenPath(ranked, scenario.objectives)
+      if (path) {
+        notes.push(`INFO: Primary plan starting location: ${path.primaryPlan.startingLocationId}`)
+        const steps = path.primaryPlan.steps
+        notes.push(`INFO: Steps count: ${steps.length}`)
+        for (const s of steps) {
+          notes.push(`  Step #${s.stepNumber}: location=${s.locationId} items=${s.itemName} min=${s.estimatedMinutes.toFixed(1)}`)
+        }
+
+        const hasMot = steps.some(s => s.locationId === 'Void - Mot')
+        notes.push(
+          hasMot
+            ? 'PASS: Translated virtual boss node to Void - Mot'
+            : 'FAIL: Expected Void - Mot in steps'
+        )
+
+        const locationCount = new Set(steps.map(s => s.locationId)).size
+        notes.push(
+          locationCount === steps.length
+            ? 'PASS: Simultaneous steps consolidated by locationId'
+            : 'FAIL: Detected duplicate locationIds in steps'
+        )
+      } else {
+        notes.push('FAIL: No golden path found')
+      }
+      return notes
+    }
   },
 ]
 

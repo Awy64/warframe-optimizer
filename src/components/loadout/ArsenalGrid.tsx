@@ -55,13 +55,58 @@ export function ArsenalGrid() {
 
   const set = (key: keyof ArsenalState) => (value: boolean) => setArsenal({ [key]: value })
 
-  const khoraDisabled = arsenal.hasAtlas || arsenal.hasHydroid
+  const anyFrameSelected =
+    arsenal.hasIvara ||
+    arsenal.hasAtlas ||
+    arsenal.hasKhora ||
+    arsenal.hasHydroid ||
+    arsenal.hasNekros
+
+  const ivaraDisabled = arsenal.squadSize === 1 && anyFrameSelected && !arsenal.hasIvara
+  const atlasDisabled = arsenal.squadSize === 1 && anyFrameSelected && !arsenal.hasAtlas
+  const khoraDisabled =
+    arsenal.hasAtlas ||
+    arsenal.hasHydroid ||
+    (arsenal.squadSize === 1 && anyFrameSelected && !arsenal.hasKhora)
+  const hydroidDisabled = arsenal.squadSize === 1 && anyFrameSelected && !arsenal.hasHydroid
+  const nekrosDisabled = arsenal.squadSize === 1 && anyFrameSelected && !arsenal.hasNekros
 
   return (
     <div className="space-y-4">
+      <Section title="Squad Size">
+        <div className="col-span-2 flex rounded-lg border border-tenno-border bg-tenno-panel/40 p-1">
+          {[1, 2, 3, 4].map((size) => (
+            <button
+              key={size}
+              type="button"
+              onClick={() => setArsenal({ squadSize: size })}
+              className={`flex-1 py-1.5 text-center text-xs font-semibold uppercase tracking-wider rounded-md transition duration-200 cursor-pointer ${
+                arsenal.squadSize === size
+                  ? 'bg-tenno-cyan/20 text-tenno-cyan border border-tenno-cyan/40 shadow-[0_0_8px_#4ecdc433]'
+                  : 'text-tenno-muted hover:text-gray-100 hover:bg-tenno-panel/20 border border-transparent'
+              }`}
+            >
+              {size === 1 ? '1 (Solo)' : size}
+            </button>
+          ))}
+        </div>
+      </Section>
+
       <Section title="Loot Frames">
-        <Switch label="Ivara" checked={arsenal.hasIvara} color="gold" onChange={set('hasIvara')} />
-        <Switch label="Atlas" checked={arsenal.hasAtlas} color="gold" onChange={set('hasAtlas')} />
+        <Switch
+          label="Ivara"
+          checked={arsenal.hasIvara}
+          disabled={ivaraDisabled}
+          color="gold"
+          onChange={set('hasIvara')}
+        />
+        <Switch
+          label="Atlas"
+          checked={arsenal.hasAtlas}
+          disabled={atlasDisabled}
+          color="gold"
+          onChange={set('hasAtlas')}
+        />
         <Switch
           label="Khora"
           checked={arsenal.hasKhora}
@@ -72,13 +117,20 @@ export function ArsenalGrid() {
         <Switch
           label="Hydroid"
           checked={arsenal.hasHydroid}
+          disabled={hydroidDisabled}
           color="gold"
           onChange={(v) => {
             if (v) setArsenal({ hasHydroid: true, hasKhora: false })
             else setArsenal({ hasHydroid: false })
           }}
         />
-        <Switch label="Nekros" checked={arsenal.hasNekros} color="gold" onChange={set('hasNekros')} />
+        <Switch
+          label="Nekros"
+          checked={arsenal.hasNekros}
+          disabled={nekrosDisabled}
+          color="gold"
+          onChange={set('hasNekros')}
+        />
       </Section>
 
       <Section title="Weapons">

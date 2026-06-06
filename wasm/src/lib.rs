@@ -372,6 +372,7 @@ pub fn compute_ranked_nodes(
                 skill as f32,
                 is_search,
                 has_caches,
+                &arsenal,
             );
             let entry = gate_times_at_node.entry(objective.item_name.clone()).or_insert(0.0);
             if gate_time > *entry {

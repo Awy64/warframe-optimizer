@@ -1,6 +1,31 @@
 use crate::types::ArsenalState;
 
 pub fn calculate_m_loot(arsenal: &ArsenalState) -> f32 {
+    if arsenal.squad_size == 1 {
+        let mut best_bonus = 0.0_f32;
+        if arsenal.has_ivara {
+            best_bonus = best_bonus.max(1.0);
+        }
+        if arsenal.has_hydroid {
+            best_bonus = best_bonus.max(1.0);
+        }
+        if arsenal.has_khora {
+            best_bonus = best_bonus.max(0.65);
+        }
+        if arsenal.has_atlas {
+            best_bonus = best_bonus.max(0.50);
+        }
+        if arsenal.has_nekros {
+            let nekros_bonus = if arsenal.has_high_slash {
+                0.54 * 2.0
+            } else {
+                0.54
+            };
+            best_bonus = best_bonus.max(nekros_bonus);
+        }
+        return 1.0 + best_bonus;
+    }
+
     let mut m = 1.0_f32;
 
     // Phase 1: Alive (Pickpocketing)
@@ -70,5 +95,27 @@ mod tests {
             ..Default::default()
         };
         assert!((calculate_m_loot(&a) - 2.08).abs() < 0.01);
+    }
+
+    #[test]
+    fn solo_player_loot_frames_do_not_stack() {
+        let a = ArsenalState {
+            squad_size: 1,
+            has_khora: true,   // 0.65
+            has_nekros: true,  // 0.54
+            ..Default::default()
+        };
+        // Should only take Khora (0.65) since it is higher than Nekros (0.54), giving 1.65 total
+        assert!((calculate_m_loot(&a) - 1.65).abs() < 0.01);
+
+        let a_slash = ArsenalState {
+            squad_size: 1,
+            has_khora: true,      // 0.65
+            has_nekros: true,     // 0.54 * 2 = 1.08
+            has_high_slash: true,
+            ..Default::default()
+        };
+        // Should take Nekros with high slash (1.08) since it is higher than Khora (0.65), giving 2.08 total
+        assert!((calculate_m_loot(&a_slash) - 2.08).abs() < 0.01);
     }
 }

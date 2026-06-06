@@ -3,6 +3,41 @@ import type { Objective, RankedNode } from '../types'
 
 export const ETC_TIE_EPSILON = 0.001
 
+function rewriteLocationId(locationId: string): string {
+  if (locationId.includes('Oxium Osprey')) {
+    return 'Jupiter - Io (Corpus Defense)'
+  }
+  if (locationId.includes('Corrupted Vor')) {
+    return 'Void - Mot'
+  }
+  return locationId
+}
+
+function consolidateSteps(steps: RouteStep[]): RouteStep[] {
+  const consolidated: RouteStep[] = []
+  const seen = new Map<string, RouteStep>()
+
+  for (const step of steps) {
+    const existing = seen.get(step.locationId)
+    if (existing) {
+      existing.itemName = `${existing.itemName}, ${step.itemName}`
+      existing.estimatedMinutes = Math.max(existing.estimatedMinutes, step.estimatedMinutes)
+      existing.quantity = Math.max(existing.quantity, step.quantity)
+      existing.warnings = Array.from(new Set([...existing.warnings, ...step.warnings]))
+    } else {
+      const stepCopy = { ...step }
+      consolidated.push(stepCopy)
+      seen.set(step.locationId, stepCopy)
+    }
+  }
+
+  for (let i = 0; i < consolidated.length; i++) {
+    consolidated[i].stepNumber = i + 1
+  }
+
+  return consolidated
+}
+
 export interface ItemBestNode {
   yield: number
   node: RankedNode
@@ -88,7 +123,8 @@ export function simulateRoutePlan(
 
     for (const item of objectives) {
       const yj = yields.get(item.itemName) ?? 0
-      const qRemaining = Math.max(0, item.targetQuantity - yj * timeHere)
+      let qRemaining = item.targetQuantity - yj * timeHere
+      if (qRemaining < 0.0001) qRemaining = 0
       if (qRemaining <= 0) continue
 
       const best = globalBest.get(item.itemName)
@@ -117,7 +153,7 @@ export function simulateRoutePlan(
   const steps: RouteStep[] = [
     {
       stepNumber: 1,
-      locationId: startNode.locationId,
+      locationId: rewriteLocationId(startNode.locationId),
       gameMode: startNode.gameMode,
       itemName: bestTarget,
       quantity: primaryObjective.targetQuantity,
@@ -130,7 +166,8 @@ export function simulateRoutePlan(
 
   for (const item of objectives) {
     const yj = yields.get(item.itemName) ?? 0
-    const qRemaining = Math.max(0, item.targetQuantity - yj * primaryMinutes)
+    let qRemaining = item.targetQuantity - yj * primaryMinutes
+    if (qRemaining < 0.0001) qRemaining = 0
     if (qRemaining <= 0) continue
 
     const best = globalBest.get(item.itemName)
@@ -138,7 +175,7 @@ export function simulateRoutePlan(
 
     cleanup.push({
       stepNumber: 0,
-      locationId: best.node.locationId,
+      locationId: rewriteLocationId(best.node.locationId),
       gameMode: best.node.gameMode,
       itemName: item.itemName,
       quantity: qRemaining,
@@ -153,11 +190,13 @@ export function simulateRoutePlan(
     steps.push(step)
   }
 
+  const consolidated = consolidateSteps(steps)
+
   return {
-    startingLocationId: startNode.locationId,
+    startingLocationId: rewriteLocationId(startNode.locationId),
     baseEtcMinutes: startNode.etcMinutes,
     finalCostMinutes: startNode.cost,
-    steps,
+    steps: consolidated,
   }
 }
 

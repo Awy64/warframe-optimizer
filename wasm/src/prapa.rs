@@ -35,7 +35,12 @@ pub fn skill_allows_tier(skill: f64, tier: &str) -> bool {
 
 pub fn is_endless_mode(mode: &str) -> bool {
     let m = mode.to_lowercase();
-    m.contains("survival") || m.contains("defense") || m.contains("excavation") || m.contains("disruption") || m.contains("cascade")
+    m.contains("survival")
+        || m.contains("defense")
+        || m.contains("excavation")
+        || m.contains("disruption")
+        || m.contains("cascade")
+        || m.contains("interception")
 }
 
 pub fn is_standard_mission_mode(mode: &str) -> bool {
@@ -48,6 +53,7 @@ pub fn is_standard_mission_mode(mode: &str) -> bool {
         || m.contains("capture")
         || m.contains("exterminate")
         || m.contains("sabotage")
+        || m.contains("interception")
 }
 
 pub fn calculate_min_run_time(
@@ -56,6 +62,7 @@ pub fn calculate_min_run_time(
     skill_coeff: f32,
     is_search_item: bool,
     has_caches_tag: bool,
+    arsenal: &ArsenalState,
 ) -> f32 {
     if !is_standard_mission_mode(game_mode) {
         return 0.0;
@@ -71,7 +78,7 @@ pub fn calculate_min_run_time(
     };
 
     if is_endless_mode(&mode) {
-        let rot_time = if mode.contains("survival") {
+        let mut rot_time = if mode.contains("survival") {
             SURVIVAL_ROTATION_MINUTES
         } else if mode.contains("defense") {
             DEFENSE_CASUAL_ROTATION_MINUTES - (DEFENSE_CASUAL_ROTATION_MINUTES - DEFENSE_EXPERT_ROTATION_MINUTES) * skill_coeff
@@ -84,6 +91,10 @@ pub fn calculate_min_run_time(
         } else {
             5.0
         };
+
+        if arsenal.squad_size == 1 && (mode.contains("excavation") || mode.contains("interception")) {
+            rot_time *= 1.75;
+        }
 
         let multiplier = match rot.as_str() {
             "A" => 1.0,
@@ -152,6 +163,7 @@ pub fn calculate_item_yield(
                 skill_coeff,
                 is_search,
                 has_caches,
+                arsenal,
             );
             if run_time <= 0.0 {
                 return 0.0;
@@ -188,6 +200,7 @@ pub fn calculate_item_yield(
                 skill_coeff,
                 false,
                 has_caches,
+                arsenal,
             );
             if run_time <= 0.0 {
                 return 0.0;
@@ -251,7 +264,10 @@ pub fn calculate_etc_cost(
                 .copied()
                 .unwrap_or(0.0);
             let amount_farmed_here = y_j * time_spent_here;
-            let q_remaining = (q_j - amount_farmed_here).max(0.0);
+            let mut q_remaining = q_j - amount_farmed_here;
+            if q_remaining < 0.0001 {
+                q_remaining = 0.0;
+            }
 
             if q_remaining > 0.0 {
                 let max_y_j = global_max_yields
@@ -481,5 +497,32 @@ mod tests {
         let bounty = calculate_item_yield(&bounty_source(15.0), 1.0, 1.0, 1.0, &arsenal);
         let enemy = calculate_item_yield(&enemy_source(12.5, None, true), 1.35, 1.0, 1.0, &arsenal);
         assert!(enemy > bounty);
+    }
+
+    #[test]
+    fn solo_concurrency_penalty_excavation_interception() {
+        let a_solo = ArsenalState {
+            squad_size: 1,
+            ..Default::default()
+        };
+        let a_squad = ArsenalState {
+            squad_size: 4,
+            ..Default::default()
+        };
+
+        // Excavation (endless)
+        let t_solo_exc = calculate_min_run_time("Excavation", "A", 1.0, false, false, &a_solo);
+        let t_squad_exc = calculate_min_run_time("Excavation", "A", 1.0, false, false, &a_squad);
+        assert!((t_solo_exc - t_squad_exc * 1.75).abs() < 0.01);
+
+        // Interception (endless)
+        let t_solo_int = calculate_min_run_time("Interception", "A", 1.0, false, false, &a_solo);
+        let t_squad_int = calculate_min_run_time("Interception", "A", 1.0, false, false, &a_squad);
+        assert!((t_solo_int - t_squad_int * 1.75).abs() < 0.01);
+
+        // Survival (no penalty)
+        let t_solo_surv = calculate_min_run_time("Survival", "A", 1.0, false, false, &a_solo);
+        let t_squad_surv = calculate_min_run_time("Survival", "A", 1.0, false, false, &a_squad);
+        assert!((t_solo_surv - t_squad_surv).abs() < 0.01);
     }
 }
