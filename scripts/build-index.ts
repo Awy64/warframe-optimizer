@@ -30,6 +30,10 @@ const PUBLIC = join(ROOT, 'public')
 const WFCD_BASE = 'https://raw.githubusercontent.com/WFCD/warframe-drop-data/main/data'
 const NODE_URL = 'https://raw.githubusercontent.com/WFCD/warframe-items/master/data/json/Node.json'
 
+function extractBaseName(locId: string): string {
+  return locId.replace(/^(Enemy|Boss) - /, '')
+}
+
 async function fetchJson<T>(url: string): Promise<T> {
   const res = await fetch(url)
   if (!res.ok) throw new Error(`Failed to fetch ${url}: ${res.status}`)
@@ -419,11 +423,14 @@ async function main() {
     'Lephantis': ['Deimos - Magnacidium'],
   }
 
+  const successfullyMappedEnemies = new Set<string>()
+
   for (const [itemName, sources] of Object.entries(index)) {
     const updatedSources: DropSource[] = []
     for (const source of sources) {
       const enemyName = source.locationId.replace(/^(Enemy|Boss) - /, '')
       if (ENEMY_SPAWN_MAPPINGS[enemyName]) {
+        successfullyMappedEnemies.add(enemyName)
         for (const physicalNode of ENEMY_SPAWN_MAPPINGS[enemyName]) {
           const tags = [...(source.tags ?? [])]
           if (enemyName.includes('Vor')) tags.push('Vor')
@@ -462,6 +469,27 @@ async function main() {
       }
     }
   }
+
+  const finalNodes = nodes.filter((node) => {
+    if (node.locationId.startsWith('Enemy - ') || node.locationId.startsWith('Boss - ')) {
+      const baseName = extractBaseName(node.locationId)
+      if (successfullyMappedEnemies.has(baseName)) {
+        return false
+      } else {
+        console.warn(
+          `[PRAPA MAINTENANCE ALERT] Unmapped Entity detected: "${baseName}". It will appear as a ghost node in the UI. Please add it to ENEMY_SPAWN_MAPPINGS.`,
+        )
+        return true
+      }
+    }
+    return true
+  })
+
+  const finalNodesRecord: Record<string, NodeMeta> = {}
+  for (const node of finalNodes) {
+    finalNodesRecord[node.locationId] = node
+  }
+  nodeLevels.nodes = finalNodesRecord
 
   propagateDescendiaTags(nodeLevels.nodes)
 
