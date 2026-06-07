@@ -17,7 +17,7 @@ use edge_cases::async_gate::{async_night_cycle_warning, ASYNC_NIGHT_WARNING};
 use edge_cases::descendia::{descendia_survivability_warning, vinquibus_warning};
 use edge_cases::hollvania::hollvania_yield_bonus;
 use edge_cases::omnia::apply_omnia_cost_multiplier;
-use kpm::reference_horde_kpm;
+use kpm::{calculate_kpm, reference_horde_kpm};
 use loot::calculate_m_loot;
 use prapa::{calculate_etc_cost, calculate_item_yield, skill_allows_tier, is_standard_mission_mode};
 use types::{
@@ -230,7 +230,6 @@ pub fn compute_ranked_nodes(
     let index = item_index();
     let nodes = node_levels();
     let m_loot = calculate_m_loot(&arsenal) as f32;
-    let kpm = reference_horde_kpm(skill as f32, &arsenal) as f64;
 
     let objective_has_eximus = objectives.iter().any(|o| {
         index
@@ -458,13 +457,19 @@ pub fn compute_ranked_nodes(
             warnings.push(ASYNC_NIGHT_WARNING.to_string());
         }
 
+        let node_kpm = matches
+            .iter()
+            .map(|(_, source)| calculate_kpm(skill as f32, &arsenal, source))
+            .max_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+            .unwrap_or_else(|| reference_horde_kpm(skill as f32, &arsenal)) as f64;
+
         ranked.push(RankedNode {
             location_id,
             game_mode: meta.game_mode,
             cost: cost as f64,
             etc_minutes: etc_minutes as f64,
             friction_penalty: friction as f64,
-            kpm,
+            kpm: node_kpm,
             matched_items,
             warnings,
             friction_applied,

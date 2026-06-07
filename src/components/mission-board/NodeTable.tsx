@@ -12,6 +12,8 @@ interface RankedNodeRow {
   gameMode: string
   cost: number
   etcMinutes: number
+  kpm: number
+  maxEnemyLevel: number
   matchedItems: MatchedItem[]
   warningsResolved: string[]
 }
@@ -199,6 +201,8 @@ export function NodeTable({ nodes, displayLimit }: NodeTableProps) {
             >
               Total ETC {renderSortIndicator('cost')}
             </th>
+            <th className="px-4 py-3">KPM</th>
+            <th className="px-4 py-3">Max Lvl</th>
             <th className="px-4 py-3">Matched Items & Yields</th>
           </tr>
         </thead>
@@ -248,6 +252,8 @@ export function NodeTable({ nodes, displayLimit }: NodeTableProps) {
                 <td className="px-4 py-3 font-medium text-orokin">
                   {formatDuration(node.cost, true)}
                 </td>
+                <td className="px-4 py-3 text-tenno-muted">{node.kpm.toFixed(1)}</td>
+                <td className="px-4 py-3 text-tenno-muted">{node.maxEnemyLevel}</td>
                 <td className="px-4 py-3">
                   <div className="flex flex-wrap gap-1.5">
                     {node.matchedItems.map((item) => (

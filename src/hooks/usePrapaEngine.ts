@@ -107,6 +107,10 @@ export function usePrapaEngine() {
             gameMode: node.gameMode,
             cost: node.cost,
             etcMinutes: node.etcMinutes,
+            frictionPenalty: node.frictionPenalty,
+            kpm: node.kpm,
+            maxEnemyLevel: node.maxEnemyLevel,
+            frictionApplied: node.frictionApplied,
             matchedItems: node.matchedItems.map((item) => ({
               itemName: item.itemName,
               yItem: item.yItem,

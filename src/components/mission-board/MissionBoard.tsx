@@ -81,8 +81,8 @@ export function MissionBoard() {
       gameMode: n.gameMode,
       cost: n.cost,
       etcMinutes: n.etcMinutes,
-      frictionPenalty: 1.0,
-      kpm: 10.0,
+      frictionPenalty: n.frictionPenalty,
+      kpm: n.kpm,
       matchedItems: n.matchedItems.map((mi) => ({
         itemName: mi.itemName,
         tadr: 0,
@@ -90,8 +90,8 @@ export function MissionBoard() {
         yItem: mi.yItem,
       })),
       warnings: n.warningsResolved,
-      frictionApplied: false,
-      maxEnemyLevel: 30,
+      frictionApplied: n.frictionApplied,
+      maxEnemyLevel: n.maxEnemyLevel,
     }))
     return buildDebugExport(rawNodes, objectives, skillCoefficient, arsenal, itemIndex)
   }, [prapaOutput, objectives, skillCoefficient, arsenal, itemIndex])

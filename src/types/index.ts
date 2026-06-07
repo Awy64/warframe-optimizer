@@ -155,6 +155,10 @@ export interface PrapaOutput {
     gameMode: string;
     cost: number;
     etcMinutes: number;
+    frictionPenalty: number;
+    kpm: number;
+    maxEnemyLevel: number;
+    frictionApplied: boolean;
     matchedItems: Array<{ itemName: string; yItem: number }>; // yItem = Yield per minute
     warningsResolved: string[]; // e.g., ["Requires stationary camp"]
   }>;

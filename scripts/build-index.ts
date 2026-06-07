@@ -191,6 +191,14 @@ function buildNodeLevels(wfcdNodes: WfcdNode[]): NodeLevelsOutput {
 
 function ensureNodeMeta(nodes: Record<string, NodeMeta>, source: DropSource) {
   if (nodes[source.locationId]) return
+  // Injected enemy loot rows point at physical nodes — metadata comes from WFCD/bounty, not the drop row.
+  if (
+    source.gameMode === 'Enemy Drop' &&
+    !source.locationId.startsWith('Enemy - ') &&
+    !source.locationId.startsWith('Boss - ')
+  ) {
+    return
+  }
   const [planet, ...rest] = source.locationId.split(' - ')
   const nodeName = rest.join(' - ')
   nodes[source.locationId] = {
@@ -405,6 +413,7 @@ async function main() {
   console.log(`Indexed ${manualCount} manual drop row(s)`)
 
   tagSteelPathSources(index)
+  dedupeAndMergeItemSources(index)
 
   const ENEMY_SPAWN_MAPPINGS: Record<string, string[]> = {
     'Oxium Osprey': ['Jupiter - Io', 'Pluto - Outer Terminus'],
@@ -430,6 +439,23 @@ async function main() {
   ])
 
   const successfullyMappedEnemies = new Set<string>()
+  const nodeLevels = buildNodeLevels(wfcdNodes)
+
+  for (const sources of Object.values(index)) {
+    for (const s of sources) ensureNodeMeta(nodeLevels.nodes, s)
+  }
+
+  const nodes = Object.values(nodeLevels.nodes)
+  for (const node of nodes) {
+    if (node.gameMode === 'Bounty' || node.locationId.includes('Bounty')) {
+      // Extract the highest level from strings like "Level 40 - 60" or "Level 100 - 100"
+      const levelMatch = node.locationId.match(/Level\s+\d+\s*-\s*(\d+)/i)
+
+      if (levelMatch && levelMatch[1]) {
+        node.maxEnemyLevel = parseInt(levelMatch[1], 10)
+      }
+    }
+  }
 
   for (const [itemName, sources] of Object.entries(index)) {
     const updatedSources: DropSource[] = []
@@ -458,23 +484,6 @@ async function main() {
   validateIndex(index)
   const itemNames = Object.keys(index).sort((a, b) => a.localeCompare(b))
   const itemIndex: ItemIndexOutput = { items: index, itemNames }
-  const nodeLevels = buildNodeLevels(wfcdNodes)
-
-  for (const sources of Object.values(index)) {
-    for (const s of sources) ensureNodeMeta(nodeLevels.nodes, s)
-  }
-
-  const nodes = Object.values(nodeLevels.nodes)
-  for (const node of nodes) {
-    if (node.gameMode === 'Bounty' || node.locationId.includes('Bounty')) {
-      // Extract the highest level from strings like "Level 40 - 60" or "Level 100 - 100"
-      const levelMatch = node.locationId.match(/Level\s+\d+\s*-\s*(\d+)/i)
-
-      if (levelMatch && levelMatch[1]) {
-        node.maxEnemyLevel = parseInt(levelMatch[1], 10)
-      }
-    }
-  }
 
   const finalNodes = nodes.filter((node) => {
     if (node.locationId.startsWith('Enemy - ') || node.locationId.startsWith('Boss - ')) {
