@@ -432,11 +432,26 @@ async function main() {
     'Lephantis': ['Deimos - Magnacidium'],
   }
 
+  Object.assign(ENEMY_SPAWN_MAPPINGS, {
+    'Councilor Vay Hek': ['Earth - Oro'],
+    'Vay Hek Terra Frame': ['Earth - Oro'],
+    'The Sergeant': ['Phobos - Iliad'],
+    'Lt Lech Kril': ['Mars - War', 'Ceres - Exta'],
+    'Hyena Pack': ['Neptune - Psamathe'],
+    'Alad V': ['Jupiter - Themisto']
+  })
+
   const IGNORED_ENTITIES = new Set([
     'Misery', 'Angst', 'Torment', 'Malice', 'Violence', 'Mania', // Acolytes
     'Stalker', 'Shadow Stalker', 'Protector Stalker', // Assassins
     'Zanuka Hunter', 'The Grustrag Three' // Death Squads
   ])
+
+  ;[
+    'Hunhow', 'Commander', 'Phorid', 'Artificer', 'Battalyst', 
+    'Conculyst', 'Decaying Battalyst', 'Decaying Conculyst', 'Mimic', 
+    'Aerolyst', 'Ortholyst', 'Summulyst', 'Symbilyst', 'Tyro Conculyst'
+  ].forEach(entity => IGNORED_ENTITIES.add(entity))
 
   const successfullyMappedEnemies = new Set<string>()
   const nodeLevels = buildNodeLevels(wfcdNodes)
@@ -489,12 +504,13 @@ async function main() {
     if (node.locationId.startsWith('Enemy - ') || node.locationId.startsWith('Boss - ')) {
       const baseName = extractBaseName(node.locationId)
       if (successfullyMappedEnemies.has(baseName) || IGNORED_ENTITIES.has(baseName)) {
-        // Successfully mapped OR intentionally ignored dynamic invader. Delete it quietly.
-        return false
+        return false // Mapped or ignored.
       } else {
-        // Unmapped entity that isn't on the ignore list. Trip the alarm!
-        console.warn(`[PRAPA MAINTENANCE ALERT] Unmapped Entity detected: "${baseName}".`)
-        return true
+        // Unmapped entity!
+        console.warn(`[PRAPA MAINTENANCE] Unmapped Entity stripped from graph: "${baseName}".`)
+        // THE KILL SWITCH: Change this from `return true` to `return false`.
+        // We MUST delete it from the JSON so the engine cannot route to ghost nodes!
+        return false
       }
     }
     return true
