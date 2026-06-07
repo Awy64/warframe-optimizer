@@ -1,3 +1,4 @@
+import { filterPlayableNodes } from './rankedNodeFilters'
 import { supplementWarnings } from './warnings'
 import type { Objective, RankedNode } from '../types'
 
@@ -118,7 +119,7 @@ export function computeGlobalBestNodes(rankedNodes: RankedNode[]): Map<string, I
 export function nodesTiedAtBestEtc(rankedNodes: RankedNode[]): RankedNode[] {
   if (rankedNodes.length === 0) return []
 
-  const best = rankedNodes[0].etcMinutes
+  const best = Math.min(...rankedNodes.map((node) => node.etcMinutes))
   return rankedNodes.filter((node) => Math.abs(node.etcMinutes - best) <= ETC_TIE_EPSILON)
 }
 
@@ -240,11 +241,7 @@ export function buildGoldenPath(
 ): GoldenPath | null {
   if (rankedNodes.length === 0 || objectives.length === 0) return null
 
-  // 1. Filter out unplayable data-reference nodes BEFORE picking the starting location
-  const validStarters = rankedNodes.filter(node => 
-    !node.locationId.startsWith("Enemy - ") &&
-    node.gameMode !== "Enemy Drop" // Extra safety check
-  )
+  const validStarters = filterPlayableNodes(rankedNodes)
 
   if (validStarters.length === 0) return null
 

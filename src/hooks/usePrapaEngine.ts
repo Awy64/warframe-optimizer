@@ -3,6 +3,7 @@ import { useOptimizerStore } from '../stores/optimizerStore'
 import type { PrapaOutput } from '../types'
 import { computeEngineResult, ensureWasm, wasmErrorMessage } from '../wasm/prapa'
 import { buildGoldenPath } from '../lib/routeItinerary'
+import { filterPlayableNodes } from '../lib/rankedNodeFilters'
 import { supplementWarnings } from '../lib/warnings'
 
 export function usePrapaEngine() {
@@ -70,11 +71,13 @@ export function usePrapaEngine() {
 
         if (cancelled) return
 
-        const goldenPath = buildGoldenPath(result.rankedNodes, debouncedObjectives)
+        const allRankedNodes = result.rankedNodes
+        const playableNodes = filterPlayableNodes(allRankedNodes)
+        const goldenPath = buildGoldenPath(playableNodes, debouncedObjectives)
 
         const output: PrapaOutput = {
           summary: {
-            rankedNodeCount: result.rankedNodes.length,
+            rankedNodeCount: allRankedNodes.length,
             optimalRouteCostMinutes: goldenPath?.primaryPlan.finalCostMinutes ?? 0,
             optimalRouteTiedNodes: goldenPath?.tiedNodes.length ?? 0,
           },
@@ -101,7 +104,7 @@ export function usePrapaEngine() {
                 alternativeStarters: goldenPath.alternativeStarters,
               }
             : undefined,
-          rankedNodes: result.rankedNodes.map((node, index) => ({
+          rankedNodes: allRankedNodes.map((node, index) => ({
             rank: index + 1,
             locationId: node.locationId,
             gameMode: node.gameMode,

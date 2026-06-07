@@ -1,5 +1,6 @@
 import dataVersion from '../data_version.txt?raw'
 import { buildGoldenPath, type RoutePlan, type RouteStep } from './routeItinerary'
+import { filterPlayableNodes } from './rankedNodeFilters'
 import { supplementWarnings } from './warnings'
 import type {
   ArsenalState,
@@ -69,7 +70,8 @@ function optimalRouteExport(
   rankedNodes: RankedNode[],
   objectives: Objective[],
 ): OptimalRouteExport | null {
-  const goldenPath = buildGoldenPath(rankedNodes, objectives)
+  const playableNodes = filterPlayableNodes(rankedNodes)
+  const goldenPath = buildGoldenPath(playableNodes, objectives)
   if (!goldenPath) return null
 
   return {

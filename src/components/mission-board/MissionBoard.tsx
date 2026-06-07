@@ -5,6 +5,7 @@ import {
   downloadDebugCsv,
   downloadDebugJson,
 } from '../../lib/exportResults'
+import { filterPlayableNodes } from '../../lib/rankedNodeFilters'
 import { useOptimizerStore } from '../../stores/optimizerStore'
 import { GoldenPath } from './GoldenPath'
 import { NodeTable } from './NodeTable'
@@ -65,9 +66,7 @@ export function MissionBoard() {
     if (!prapaOutput) return []
     let list = prapaOutput.rankedNodes
     if (!showEnemyDrops) {
-      list = list.filter(
-        (node) => node.gameMode !== 'Enemy Drop' && !node.locationId.startsWith('Enemy - '),
-      )
+      list = filterPlayableNodes(list)
     }
     return list
   }, [prapaOutput, showEnemyDrops])

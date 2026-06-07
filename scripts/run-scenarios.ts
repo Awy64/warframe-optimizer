@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url'
 
 import { initSync, init_engine, compute_ranked_nodes } from '../wasm/pkg/warframe_prapa_wasm.js'
 import { buildGoldenPath } from '../src/lib/routeItinerary.js'
+import { filterPlayableNodes, isPlayableNode } from '../src/lib/rankedNodeFilters.js'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -557,7 +558,7 @@ const SCENARIOS: Scenario[] = [
     ],
     checks: ({ ranked, scenario }) => {
       const notes: string[] = []
-      const path = buildGoldenPath(ranked, scenario.objectives)
+      const path = buildGoldenPath(filterPlayableNodes(ranked), scenario.objectives)
       if (path) {
         notes.push(`INFO: Primary plan starting location: ${path.primaryPlan.startingLocationId}`)
         const steps = path.primaryPlan.steps
@@ -612,6 +613,63 @@ const SCENARIOS: Scenario[] = [
       }
       return notes
     }
+  },
+  {
+    id: 15,
+    name: 'Playability Firewall (Virtual Entities Blocked From Route)',
+    skill: 0.15,
+    objectives: [{ itemName: 'Orokin Cell', targetQuantity: 2 }],
+    arsenal: { squadSize: 1 },
+    checks: ({ ranked, scenario }) => {
+      const notes: string[] = []
+      const virtualPrefix = /^(?:Boss|Enemy) - /
+
+      const hasGhostRanked = ranked.some((n) => n.locationId.startsWith('Enemy - '))
+      notes.push(
+        hasGhostRanked
+          ? 'PASS: Virtual enemy nodes still present in rankedNodes (data layer)'
+          : 'WARN: No Enemy - rows in ranked list (index may have changed)',
+      )
+
+      const path = buildGoldenPath(filterPlayableNodes(ranked), scenario.objectives)
+      if (!path) {
+        notes.push('FAIL: No golden path found')
+        return notes
+      }
+
+      const step1 = path.primaryPlan.steps[0]
+      notes.push(`INFO: Primary plan step 1: ${step1?.locationId ?? 'none'}`)
+
+      notes.push(
+        step1 && !virtualPrefix.test(step1.locationId)
+          ? 'PASS: Step 1 is a physical Star Chart node'
+          : `FAIL: Step 1 must not be a virtual entity, got ${step1?.locationId}`,
+      )
+
+      const allPlans = [path.primaryPlan, ...path.alternativeStarters]
+      const badSteps = allPlans.flatMap((plan) =>
+        plan.steps.filter(
+          (step) =>
+            !isPlayableNode({
+              locationId: step.locationId,
+              gameMode: step.gameMode,
+            } as (typeof ranked)[0]),
+        ),
+      )
+      notes.push(
+        badSteps.length === 0
+          ? 'PASS: All route steps are playable nodes'
+          : `FAIL: ${badSteps.length} unplayable step(s): ${badSteps.map((s) => s.locationId).join(', ')}`,
+      )
+
+      notes.push(
+        !virtualPrefix.test(path.primaryPlan.startingLocationId)
+          ? `PASS: Starter is physical node (${path.primaryPlan.startingLocationId})`
+          : `FAIL: Starter must not be virtual entity (${path.primaryPlan.startingLocationId})`,
+      )
+
+      return notes
+    },
   },
 ]
 
