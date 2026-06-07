@@ -69,9 +69,10 @@ function dropSourcesForNode(
 function optimalRouteExport(
   rankedNodes: RankedNode[],
   objectives: Objective[],
+  arsenal: ArsenalState,
 ): OptimalRouteExport | null {
   const playableNodes = filterPlayableNodes(rankedNodes)
-  const goldenPath = buildGoldenPath(playableNodes, objectives)
+  const goldenPath = buildGoldenPath(playableNodes, objectives, arsenal)
   if (!goldenPath) return null
 
   return {
@@ -91,7 +92,7 @@ export function buildDebugExport(
   arsenal: ArsenalState,
   itemIndex: ItemIndex | null,
 ): PrapaDebugExport {
-  const optimalRoute = optimalRouteExport(rankedNodes, objectives)
+  const optimalRoute = optimalRouteExport(rankedNodes, objectives, arsenal)
 
   return {
     exportedAt: new Date().toISOString(),

@@ -22,7 +22,10 @@ use edge_cases::playability::is_routable_node;
 use drop_type::DropType;
 use kpm::{calculate_kpm, reference_horde_kpm};
 use loot::calculate_m_loot;
-use prapa::{calculate_etc_cost, calculate_item_yield, skill_allows_tier, is_standard_mission_mode};
+use prapa::{
+    calculate_etc_cost, calculate_item_yield, skill_allows_tier, is_standard_mission_mode,
+    GlobalBestYield,
+};
 use types::{
     ArsenalState, DropSource, ItemIndex, MatchedItem, NodeLevelsFile, NodeMeta, Objective,
     PrapaEngineResult, RankedNode,
@@ -80,12 +83,15 @@ fn detect_pathing_failures(
     index: &ItemIndex,
     nodes: &NodeLevelsFile,
     arsenal: &ArsenalState,
-    global_max: &HashMap<String, f32>,
+    global_max: &HashMap<String, GlobalBestYield>,
 ) -> Vec<String> {
     let mut failures = Vec::new();
 
     for objective in objectives {
-        let max_y = global_max.get(&objective.item_name).copied().unwrap_or(0.0);
+        let max_y = global_max
+            .get(&objective.item_name)
+            .map(|g| g.yield_per_minute)
+            .unwrap_or(0.0);
         if max_y > 0.0 {
             continue;
         }
@@ -168,12 +174,19 @@ fn compute_global_max_yields(
     arsenal: &ArsenalState,
     objective_has_eximus: bool,
     timestamp_ms: f64,
-) -> HashMap<String, f32> {
+) -> HashMap<String, GlobalBestYield> {
     let mut global_max = HashMap::new();
 
     for objective in objectives {
         let Some(sources) = index.items.get(&objective.item_name) else {
-            global_max.insert(objective.item_name.clone(), 0.0);
+            global_max.insert(
+                objective.item_name.clone(),
+                GlobalBestYield {
+                    yield_per_minute: 0.0,
+                    location_id: String::new(),
+                    game_mode: String::new(),
+                },
+            );
             continue;
         };
 
@@ -186,6 +199,8 @@ fn compute_global_max_yields(
         }
 
         let mut best = 0.0_f32;
+        let mut best_location = String::new();
+        let mut best_game_mode = String::new();
         for (location_id, loc_sources) in by_location {
             let meta = resolve_node_meta(&location_id, &loc_sources[0].game_mode, nodes);
 
@@ -216,10 +231,21 @@ fn compute_global_max_yields(
                 objective_has_eximus,
                 timestamp_ms,
             );
-            best = best.max(y);
+            if y > best {
+                best = y;
+                best_location = location_id.clone();
+                best_game_mode = meta.game_mode.clone();
+            }
         }
 
-        global_max.insert(objective.item_name.clone(), best);
+        global_max.insert(
+            objective.item_name.clone(),
+            GlobalBestYield {
+                yield_per_minute: best,
+                location_id: best_location,
+                game_mode: best_game_mode,
+            },
+        );
     }
 
     global_max
@@ -442,6 +468,9 @@ pub fn compute_ranked_nodes(
             &yields_at_node,
             &global_max_yields,
             &gate_times_at_node,
+            &location_id,
+            &meta.game_mode,
+            arsenal.squad_size,
             is_endless_fissure,
             node_level,
             skill as f32,

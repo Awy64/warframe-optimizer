@@ -73,7 +73,7 @@ export function usePrapaEngine() {
 
         const allRankedNodes = result.rankedNodes
         const playableNodes = filterPlayableNodes(allRankedNodes)
-        const goldenPath = buildGoldenPath(playableNodes, debouncedObjectives)
+        const goldenPath = buildGoldenPath(playableNodes, debouncedObjectives, arsenal)
 
         const output: PrapaOutput = {
           summary: {

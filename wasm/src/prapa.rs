@@ -10,12 +10,21 @@ use crate::constants::{
     CAPTURE_TTX_FLOOR_MINUTES, EXTERMINATE_TTX_FLOOR_MINUTES, CACHES_SEARCH_FRICTION_MINUTES,
 };
 use crate::edge_cases::follies_hunt::atramentum_yield_per_minute;
+use crate::edge_cases::follies_hunt::farm_minutes_at_node;
+use crate::edge_cases::follies_hunt::is_follies_hunt_node;
 use crate::edge_cases::follies_hunt::is_update42_heuristic;
 use crate::drop_type::DropType;
 use crate::kpm::calculate_kpm;
 use crate::types::{ArsenalState, DropSource, Objective};
 
 pub const UNFARMABLE_ETC: f32 = 99_999.0;
+
+#[derive(Clone, Debug)]
+pub struct GlobalBestYield {
+    pub yield_per_minute: f32,
+    pub location_id: String,
+    pub game_mode: String,
+}
 
 pub fn calculate_friction(skill_coeff: f32, node_level: f32) -> f32 {
     let max_comfortable = skill_coeff * COMFORT_LEVEL_SCALE;
@@ -235,8 +244,11 @@ pub fn calculate_item_yield(
 pub fn calculate_etc_cost(
     cart: &[Objective],
     yields_at_node: &HashMap<String, f32>,
-    global_max_yields: &HashMap<String, f32>,
+    global_max_yields: &HashMap<String, GlobalBestYield>,
     gate_times_at_node: &HashMap<String, f32>,
+    location_id: &str,
+    game_mode: &str,
+    squad_size: u8,
     is_endless_fissure: bool,
     node_level: f32,
     skill_coeff: f32,
@@ -253,7 +265,8 @@ pub fn calculate_etc_cost(
         }
 
         let q_target = target.target_quantity as f32;
-        let mut time_spent_here = q_target / y_target;
+        let mut time_spent_here =
+            farm_minutes_at_node(q_target, y_target, location_id, game_mode, squad_size);
 
         // Apply endless fissure resource escalation
         if is_endless_fissure && !target.item_name.contains("Prime") {
@@ -262,10 +275,12 @@ pub fn calculate_etc_cost(
             }
         }
 
-        // Apply minimum rotation gate time floor
-        let gate_time = gate_times_at_node.get(&target.item_name).copied().unwrap_or(0.0);
-        if gate_time > 0.0 {
-            time_spent_here = time_spent_here.max(gate_time);
+        // Gate floor only for non-Follie's nodes (quantization already ceils runs)
+        if !is_follies_hunt_node(location_id, game_mode) {
+            let gate_time = gate_times_at_node.get(&target.item_name).copied().unwrap_or(0.0);
+            if gate_time > 0.0 {
+                time_spent_here = time_spent_here.max(gate_time);
+            }
         }
 
         let mut remaining_etc = 0.0_f32;
@@ -282,12 +297,18 @@ pub fn calculate_etc_cost(
             }
 
             if q_remaining > 0.0 {
-                let max_y_j = global_max_yields
-                    .get(&cart_item.item_name)
-                    .copied()
-                    .unwrap_or(0.0);
-                if max_y_j > 0.0 {
-                    remaining_etc += q_remaining / max_y_j;
+                if let Some(global_best) = global_max_yields.get(&cart_item.item_name) {
+                    if global_best.yield_per_minute > 0.0 {
+                        remaining_etc += farm_minutes_at_node(
+                            q_remaining,
+                            global_best.yield_per_minute,
+                            &global_best.location_id,
+                            &global_best.game_mode,
+                            squad_size,
+                        );
+                    } else {
+                        remaining_etc += UNFARMABLE_ETC;
+                    }
                 } else {
                     remaining_etc += UNFARMABLE_ETC;
                 }
@@ -371,6 +392,19 @@ mod tests {
         }
     }
 
+    fn global_best(
+        _item: &str,
+        yield_per_minute: f32,
+        location_id: &str,
+        game_mode: &str,
+    ) -> GlobalBestYield {
+        GlobalBestYield {
+            yield_per_minute,
+            location_id: location_id.to_string(),
+            game_mode: game_mode.to_string(),
+        }
+    }
+
     fn dual_cart() -> Vec<Objective> {
         vec![
             Objective {
@@ -399,18 +433,28 @@ mod tests {
     fn etc_dual_cart_isolated_nodes_tie() {
         let cart = dual_cart();
         let global_max = HashMap::from([
-            ("Orokin Cell".to_string(), 16.8_f32),
-            ("Argon Crystal".to_string(), 2.5_f32),
+            (
+                "Orokin Cell".to_string(),
+                global_best("Orokin Cell", 16.8, "Ceres - Gabii", "Survival"),
+            ),
+            (
+                "Argon Crystal".to_string(),
+                global_best("Argon Crystal", 2.5, "Void - Ani", "Survival"),
+            ),
         ]);
 
         let mut gabii = HashMap::new();
         gabii.insert("Orokin Cell".to_string(), 16.8_f32);
         let gate_times = HashMap::new();
-        let (gabii_etc, _) = calculate_etc_cost(&cart, &gabii, &global_max, &gate_times, false, 20.0, 1.0);
+        let (gabii_etc, _) = calculate_etc_cost(
+            &cart, &gabii, &global_max, &gate_times, "Ceres - Gabii", "Survival", 4, false, 20.0, 1.0,
+        );
 
         let mut ani = HashMap::new();
         ani.insert("Argon Crystal".to_string(), 2.5_f32);
-        let (ani_etc, _) = calculate_etc_cost(&cart, &ani, &global_max, &gate_times, false, 20.0, 1.0);
+        let (ani_etc, _) = calculate_etc_cost(
+            &cart, &ani, &global_max, &gate_times, "Void - Ani", "Survival", 4, false, 20.0, 1.0,
+        );
 
         assert!((gabii_etc - 4.59).abs() < 0.05);
         assert!((ani_etc - 4.59).abs() < 0.05);
@@ -420,19 +464,29 @@ mod tests {
     fn etc_synergy_trap_formido_slower_than_isolated_route() {
         let cart = dual_cart();
         let global_max = HashMap::from([
-            ("Orokin Cell".to_string(), 16.8_f32),
-            ("Argon Crystal".to_string(), 2.5_f32),
+            (
+                "Orokin Cell".to_string(),
+                global_best("Orokin Cell", 16.8, "Ceres - Gabii", "Survival"),
+            ),
+            (
+                "Argon Crystal".to_string(),
+                global_best("Argon Crystal", 2.5, "Void - Ani", "Survival"),
+            ),
         ]);
 
         let mut formido = HashMap::new();
         formido.insert("Orokin Cell".to_string(), 1.15_f32);
         formido.insert("Argon Crystal".to_string(), 1.15_f32);
         let gate_times = HashMap::new();
-        let (formido_etc, _) = calculate_etc_cost(&cart, &formido, &global_max, &gate_times, false, 20.0, 1.0);
+        let (formido_etc, _) = calculate_etc_cost(
+            &cart, &formido, &global_max, &gate_times, "Deimos - Formido", "Survival", 4, false, 20.0, 1.0,
+        );
 
         let mut gabii = HashMap::new();
         gabii.insert("Orokin Cell".to_string(), 16.8_f32);
-        let (gabii_etc, _) = calculate_etc_cost(&cart, &gabii, &global_max, &gate_times, false, 20.0, 1.0);
+        let (gabii_etc, _) = calculate_etc_cost(
+            &cart, &gabii, &global_max, &gate_times, "Ceres - Gabii", "Survival", 4, false, 20.0, 1.0,
+        );
 
         assert!((formido_etc - 8.69).abs() < 0.05);
         assert!(formido_etc > gabii_etc * 1.8);
@@ -444,13 +498,48 @@ mod tests {
             item_name: "Orokin Cell".to_string(),
             target_quantity: 10,
         }];
-        let global_max = HashMap::from([("Orokin Cell".to_string(), 16.8_f32)]);
+        let global_max = HashMap::from([(
+            "Orokin Cell".to_string(),
+            global_best("Orokin Cell", 16.8, "Ceres - Gabii", "Survival"),
+        )]);
         let mut node = HashMap::new();
         node.insert("Orokin Cell".to_string(), 16.8_f32);
         let gate_times = HashMap::new();
 
-        let (etc, _) = calculate_etc_cost(&cart, &node, &global_max, &gate_times, false, 20.0, 1.0);
+        let (etc, _) = calculate_etc_cost(
+            &cart, &node, &global_max, &gate_times, "Ceres - Gabii", "Survival", 4, false, 20.0, 1.0,
+        );
         assert!((etc - (10.0 / 16.8)).abs() < 0.001);
+    }
+
+    #[test]
+    fn etc_follies_hunt_solo_atramentum_quantizes_to_one_run() {
+        let cart = vec![Objective {
+            item_name: "Atramentum".to_string(),
+            target_quantity: 1,
+        }];
+        let y = 24.0 / 14.0;
+        let global_max = HashMap::from([(
+            "Atramentum".to_string(),
+            global_best("Atramentum", y, "Venus - Vesper Relay", "Follie's Hunt"),
+        )]);
+        let mut vesper = HashMap::new();
+        vesper.insert("Atramentum".to_string(), y);
+        let gate_times = HashMap::from([("Atramentum".to_string(), 14.0_f32)]);
+
+        let (etc, _) = calculate_etc_cost(
+            &cart,
+            &vesper,
+            &global_max,
+            &gate_times,
+            "Venus - Vesper Relay",
+            "Follie's Hunt",
+            1,
+            false,
+            20.0,
+            1.0,
+        );
+        assert!((etc - 14.0).abs() < 0.001);
     }
 
     #[test]

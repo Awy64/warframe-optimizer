@@ -558,7 +558,8 @@ const SCENARIOS: Scenario[] = [
     ],
     checks: ({ ranked, scenario }) => {
       const notes: string[] = []
-      const path = buildGoldenPath(filterPlayableNodes(ranked), scenario.objectives)
+      const arsenal = { ...DEFAULT_ARSENAL, ...scenario.arsenal }
+      const path = buildGoldenPath(filterPlayableNodes(ranked), scenario.objectives, arsenal)
       if (path) {
         notes.push(`INFO: Primary plan starting location: ${path.primaryPlan.startingLocationId}`)
         const steps = path.primaryPlan.steps
@@ -631,7 +632,8 @@ const SCENARIOS: Scenario[] = [
           : 'WARN: No Enemy - rows in ranked list (index may have changed)',
       )
 
-      const path = buildGoldenPath(filterPlayableNodes(ranked), scenario.objectives)
+      const arsenal = { ...DEFAULT_ARSENAL, ...scenario.arsenal }
+      const path = buildGoldenPath(filterPlayableNodes(ranked), scenario.objectives, arsenal)
       if (!path) {
         notes.push('FAIL: No golden path found')
         return notes

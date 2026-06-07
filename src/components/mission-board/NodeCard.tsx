@@ -1,6 +1,7 @@
 import type { RankedNode } from '../../types'
 import { formatDuration, formatEtaBadge } from '../../lib/formatDuration'
-import { itemEtaAtNode, type ItemBestNode } from '../../lib/routeItinerary'
+import { farmMinutesAtNode, type ItemBestNode } from '../../lib/routeItinerary'
+import { useOptimizerStore } from '../../stores/optimizerStore'
 import { supplementWarnings } from '../../lib/warnings'
 import { etcBadgeClasses } from '../../lib/yieldTier'
 import { WarningTooltip } from './WarningTooltip'
@@ -12,6 +13,7 @@ interface NodeCardProps {
 }
 
 export function NodeCard({ node, globalBest, rank }: NodeCardProps) {
+  const arsenal = useOptimizerStore((s) => s.arsenal)
   const warnings = supplementWarnings(node)
   const uniqueMatches = Array.from(
     new Map(node.matchedItems.map((item) => [item.itemName, item])).values(),
@@ -32,10 +34,22 @@ export function NodeCard({ node, globalBest, rank }: NodeCardProps) {
 
       <div className="mb-3 flex flex-wrap gap-2">
         {uniqueMatches.map((item) => {
-          const etaMinutes = itemEtaAtNode(item.targetQuantity, item.yItem)
+          const etaMinutes = farmMinutesAtNode(
+            item.targetQuantity,
+            item.yItem,
+            node.locationId,
+            node.gameMode,
+            arsenal.squadSize,
+          )
           const best = globalBest.get(item.itemName)
           const bestEtaMinutes = best
-            ? itemEtaAtNode(item.targetQuantity, best.yield)
+            ? farmMinutesAtNode(
+                item.targetQuantity,
+                best.yield,
+                best.node.locationId,
+                best.node.gameMode,
+                arsenal.squadSize,
+              )
             : etaMinutes
           const badgeClasses = etcBadgeClasses(etaMinutes, bestEtaMinutes)
 

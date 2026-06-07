@@ -36,6 +36,32 @@ pub fn is_update42_heuristic(tags: &[String]) -> bool {
     tags.iter().any(|t| t == UPDATE42_HEURISTIC_TAG)
 }
 
+pub fn quantized_farm_minutes(target_quantity: f32, yield_per_minute: f32, squad_size: u8) -> f32 {
+    let run_duration = base_completion_time(squad_size);
+    let yield_per_run = (yield_per_minute * run_duration).round();
+
+    if yield_per_run <= 0.0 {
+        return f32::MAX;
+    }
+
+    let runs = ((target_quantity - 0.00001) / yield_per_run).ceil().max(0.0);
+    runs * run_duration
+}
+
+pub fn farm_minutes_at_node(
+    target_quantity: f32,
+    yield_per_minute: f32,
+    location_id: &str,
+    game_mode: &str,
+    squad_size: u8,
+) -> f32 {
+    if is_follies_hunt_node(location_id, game_mode) {
+        quantized_farm_minutes(target_quantity, yield_per_minute, squad_size)
+    } else {
+        target_quantity / yield_per_minute
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -78,5 +104,46 @@ mod tests {
     fn loot_frames_unaffected_on_other_nodes() {
         let m = effective_m_loot("Ceres - Gabii", "Survival", 2.5);
         assert_eq!(m, 2.5);
+    }
+
+    #[test]
+    fn quantized_solo_qty_one() {
+        let y = 24.0 / 14.0;
+        let minutes = quantized_farm_minutes(1.0, y, 1);
+        assert!((minutes - 14.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn quantized_solo_qty_twenty_four_no_float_drift() {
+        let y = atramentum_yield_per_minute(&ArsenalState {
+            squad_size: 1,
+            ..ArsenalState::default()
+        });
+        let minutes = quantized_farm_minutes(24.0, y, 1);
+        assert!((minutes - 14.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn quantized_solo_qty_twenty_five_two_runs() {
+        let y = 24.0 / 14.0;
+        let minutes = quantized_farm_minutes(25.0, y, 1);
+        assert!((minutes - 28.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn quantized_squad_four_qty_thirty() {
+        let y = 4.0;
+        let minutes = quantized_farm_minutes(30.0, y, 4);
+        assert!((minutes - 12.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn quantized_steel_path_squad_four_qty_fifty_three() {
+        let y = atramentum_yield_per_minute(&ArsenalState {
+            steel_path_active: true,
+            ..ArsenalState::default()
+        });
+        let minutes = quantized_farm_minutes(53.0, y, 4);
+        assert!((minutes - 6.0).abs() < 0.001);
     }
 }

@@ -1,6 +1,6 @@
 import { filterPlayableNodes } from './rankedNodeFilters'
 import { supplementWarnings } from './warnings'
-import type { Objective, RankedNode } from '../types'
+import type { ArsenalState, Objective, RankedNode } from '../types'
 
 export const ETC_TIE_EPSILON = 0.001
 
@@ -87,8 +87,44 @@ export interface GoldenPath {
   alternativeStarters: RoutePlan[]
 }
 
+function isFolliesHuntNode(locationId: string, gameMode: string): boolean {
+  return gameMode === "Follie's Hunt" || locationId.includes('Vesper Relay')
+}
+
+function baseCompletionTime(squadSize: number): number {
+  if (squadSize === 1) return 14.0
+  if (squadSize === 2) return 9.5
+  if (squadSize === 3) return 7.5
+  return 6.0
+}
+
+export function farmMinutesAtNode(
+  quantity: number,
+  yItem: number,
+  locationId: string,
+  gameMode: string,
+  squadSize: number,
+): number {
+  if (yItem <= 0 || !Number.isFinite(yItem)) return Number.POSITIVE_INFINITY
+  if (isFolliesHuntNode(locationId, gameMode)) {
+    const runDuration = baseCompletionTime(squadSize)
+    const yieldPerRun = Math.round(yItem * runDuration)
+    return Math.max(0, Math.ceil((quantity - 0.00001) / yieldPerRun)) * runDuration
+  }
+  return quantity / yItem
+}
+
 /** Minutes to farm `targetQuantity` of an item at a node from its yield rate. */
-export function itemEtaAtNode(targetQuantity: number, yItem: number): number {
+export function itemEtaAtNode(
+  targetQuantity: number,
+  yItem: number,
+  locationId?: string,
+  gameMode?: string,
+  squadSize?: number,
+): number {
+  if (locationId && gameMode && squadSize !== undefined) {
+    return farmMinutesAtNode(targetQuantity, yItem, locationId, gameMode, squadSize)
+  }
   if (yItem <= 0 || !Number.isFinite(yItem)) return Number.POSITIVE_INFINITY
   return targetQuantity / yItem
 }
@@ -128,6 +164,7 @@ export function simulateRoutePlan(
   startNode: RankedNode,
   objectives: Objective[],
   globalBest: Map<string, ItemBestNode>,
+  arsenal: ArsenalState,
 ): RoutePlan | null {
   const yields = yieldsAtNode(startNode)
   let bestTarget: string | null = null
@@ -137,7 +174,13 @@ export function simulateRoutePlan(
     const yTarget = yields.get(objective.itemName) ?? 0
     if (yTarget <= 0) continue
 
-    const timeHere = objective.targetQuantity / yTarget
+    const timeHere = farmMinutesAtNode(
+      objective.targetQuantity,
+      yTarget,
+      startNode.locationId,
+      startNode.gameMode,
+      arsenal.squadSize,
+    )
     let remaining = 0
 
     for (const item of objectives) {
@@ -150,7 +193,13 @@ export function simulateRoutePlan(
       if (!best || best.yield <= 0) {
         remaining += 99_999
       } else {
-        remaining += qRemaining / best.yield
+        remaining += farmMinutesAtNode(
+          qRemaining,
+          best.yield,
+          best.node.locationId,
+          best.node.gameMode,
+          arsenal.squadSize,
+        )
       }
     }
 
@@ -167,7 +216,13 @@ export function simulateRoutePlan(
   if (!primaryObjective) return null
 
   const yPrimary = yields.get(bestTarget) ?? 0
-  const primaryMinutes = primaryObjective.targetQuantity / yPrimary
+  const primaryMinutes = farmMinutesAtNode(
+    primaryObjective.targetQuantity,
+    yPrimary,
+    startNode.locationId,
+    startNode.gameMode,
+    arsenal.squadSize,
+  )
 
   const startNodeItems: RouteStepItem[] = []
   for (const item of objectives) {
@@ -213,7 +268,13 @@ export function simulateRoutePlan(
       gameMode: best.node.gameMode,
       itemName: item.itemName,
       quantity: qRemaining,
-      estimatedMinutes: qRemaining / best.yield,
+      estimatedMinutes: farmMinutesAtNode(
+        qRemaining,
+        best.yield,
+        best.node.locationId,
+        best.node.gameMode,
+        arsenal.squadSize,
+      ),
       warnings: supplementWarnings(best.node),
       items: [{ itemName: item.itemName, quantity: qRemaining }],
     })
@@ -226,11 +287,13 @@ export function simulateRoutePlan(
   }
 
   const consolidated = consolidateSteps(steps)
+  const stepSum = consolidated.reduce((sum, step) => sum + step.estimatedMinutes, 0)
 
   return {
     startingLocationId: startNode.locationId,
-    baseEtcMinutes: startNode.etcMinutes,
-    finalCostMinutes: startNode.cost,
+    baseEtcMinutes: stepSum,
+    finalCostMinutes:
+      startNode.etcMinutes > 0 ? stepSum * (startNode.cost / startNode.etcMinutes) : startNode.cost,
     steps: consolidated,
   }
 }
@@ -238,6 +301,7 @@ export function simulateRoutePlan(
 export function buildGoldenPath(
   rankedNodes: RankedNode[],
   objectives: Objective[],
+  arsenal: ArsenalState,
 ): GoldenPath | null {
   if (rankedNodes.length === 0 || objectives.length === 0) return null
 
@@ -249,7 +313,7 @@ export function buildGoldenPath(
   const globalBest = computeGlobalBestNodes(validStarters)
 
   const plans = tiedNodes
-    .map((node) => simulateRoutePlan(node, objectives, globalBest))
+    .map((node) => simulateRoutePlan(node, objectives, globalBest, arsenal))
     .filter((plan): plan is RoutePlan => plan !== null)
 
   if (plans.length === 0) return null
