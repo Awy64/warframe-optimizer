@@ -39,4 +39,39 @@ if (!/^[a-f0-9]{12}$/.test(version)) {
   throw new Error(`data_version.txt has invalid version: ${version}`)
 }
 
+const nodeLevels = JSON.parse(readFileSync(join(PUBLIC, 'node_levels.json'), 'utf8')) as {
+  nodes: Record<string, { gameMode: string }>
+}
+const itemIndex = JSON.parse(readFileSync(join(PUBLIC, 'item_index.json'), 'utf8')) as {
+  items: Record<string, Array<{ locationId: string; gameMode: string; tags?: string[] }>>
+}
+
+const EXPECTED_NODE_GAME_MODES: Record<string, string> = {
+  'Earth - Cervantes': 'Sabotage',
+  'Deimos - Formido': 'Sabotage',
+  'Mars - Gradivus': 'Sabotage',
+  'Jupiter - Callisto': 'Interception',
+  'Earth - Gaia': 'Interception',
+  'Earth - Cervantes (Caches)': 'Caches',
+}
+
+for (const [locationId, expected] of Object.entries(EXPECTED_NODE_GAME_MODES)) {
+  const actual = nodeLevels.nodes[locationId]?.gameMode
+  if (actual !== expected) {
+    throw new Error(`${locationId}: expected gameMode "${expected}", got "${actual ?? 'missing'}"`)
+  }
+}
+
+const cervantesNeurodes = itemIndex.items.Neurodes?.find(
+  (s) => s.locationId === 'Earth - Cervantes' && s.tags?.includes('planetary-heuristic'),
+)
+if (!cervantesNeurodes) {
+  throw new Error('Neurodes planetary heuristic missing for Earth - Cervantes')
+}
+if (cervantesNeurodes.gameMode !== 'Sabotage') {
+  throw new Error(
+    `Neurodes at Earth - Cervantes: expected gameMode "Sabotage", got "${cervantesNeurodes.gameMode}"`,
+  )
+}
+
 console.log(`Validated index files (data version ${version})`)

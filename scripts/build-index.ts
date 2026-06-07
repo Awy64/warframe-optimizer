@@ -13,6 +13,7 @@ import { ingestManualDrops } from './lib/manual-drops.js'
 import { propagateDescendiaTags } from './lib/propagate-tags.js'
 import { ingestRelicPrimeComponents } from './lib/sources/relics.js'
 import { ingestTransientRewards } from './lib/sources/transients.js'
+import { gameModeForMissionIndex } from './lib/game-mode.js'
 import { buildDropSource, validateIndex } from './lib/sanitize.js'
 import enemyNodeMap from './lib/enemy-node-map.json' with { type: 'json' }
 import transientLocations from './config/transient_locations.json' with { type: 'json' }
@@ -120,25 +121,9 @@ function addEntry(index: Record<string, DropSource[]>, itemName: string, source:
   index[canonical].push(tagSource(source, canonical))
 }
 
-const MISSION_INDEX_TO_GAME_MODE: Record<number, string> = {
-  0: 'Assassination',
-  1: 'Exterminate',
-  2: 'Survival',
-  3: 'Rescue',
-  4: 'Interception',
-  5: 'Sabotage',
-  7: 'Capture',
-  8: 'Defense',
-  9: 'Mobile Defense',
-  13: 'Sabotage',
-  17: 'Excavation',
-}
-
 function gameModeForNode(node: WfcdNode): string {
-  if (node.missionIndex != null && node.missionIndex in MISSION_INDEX_TO_GAME_MODE) {
-    return MISSION_INDEX_TO_GAME_MODE[node.missionIndex]
-  }
-  return 'Mission'
+  if (node.missionIndex == null) return 'Mission'
+  return gameModeForMissionIndex(node.missionIndex)
 }
 
 function buildNodeLevels(wfcdNodes: WfcdNode[]): NodeLevelsOutput {
