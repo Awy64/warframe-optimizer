@@ -240,8 +240,16 @@ export function buildGoldenPath(
 ): GoldenPath | null {
   if (rankedNodes.length === 0 || objectives.length === 0) return null
 
-  const tiedNodes = nodesTiedAtBestEtc(rankedNodes)
-  const globalBest = computeGlobalBestNodes(rankedNodes)
+  // 1. Filter out unplayable data-reference nodes BEFORE picking the starting location
+  const validStarters = rankedNodes.filter(node => 
+    !node.locationId.startsWith("Enemy - ") &&
+    node.gameMode !== "Enemy Drop" // Extra safety check
+  )
+
+  if (validStarters.length === 0) return null
+
+  const tiedNodes = nodesTiedAtBestEtc(validStarters)
+  const globalBest = computeGlobalBestNodes(validStarters)
 
   const plans = tiedNodes
     .map((node) => simulateRoutePlan(node, objectives, globalBest))
