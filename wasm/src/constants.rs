@@ -15,6 +15,9 @@ pub const DESCENDIA_SKILL_WARN: f32 = 0.8;
 pub const EXPERT_SKILL_GATE: f32 = 0.7;
 pub const INTERMEDIATE_SKILL_GATE: f32 = 0.3;
 pub const INTERVAL_SPAWN_TAG: &str = "interval-spawn";
+pub const UPDATE42_HEURISTIC_TAG: &str = "update42-heuristic";
+pub const ATRAMENTUM_YIELD_NORMAL: f32 = 24.0;
+pub const ATRAMENTUM_YIELD_STEEL_PATH: f32 = 53.0;
 pub const DEFAULT_ACOLYTE_SPAWN_MINUTES: f32 = 6.0;
 pub const DEFAULT_ACOLYTE_DROP_YIELD: f32 = 2.0;
 

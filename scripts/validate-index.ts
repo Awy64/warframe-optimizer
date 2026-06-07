@@ -53,6 +53,7 @@ const EXPECTED_NODE_GAME_MODES: Record<string, string> = {
   'Jupiter - Callisto': 'Interception',
   'Earth - Gaia': 'Interception',
   'Earth - Cervantes (Caches)': 'Caches',
+  'Venus - Vesper Relay': "Follie's Hunt",
 }
 
 for (const [locationId, expected] of Object.entries(EXPECTED_NODE_GAME_MODES)) {
@@ -72,6 +73,50 @@ if (cervantesNeurodes.gameMode !== 'Sabotage') {
   throw new Error(
     `Neurodes at Earth - Cervantes: expected gameMode "Sabotage", got "${cervantesNeurodes.gameMode}"`,
   )
+}
+
+for (const locationId of Object.keys(nodeLevels.nodes)) {
+  if (locationId.includes('(Extra)')) {
+    throw new Error(`Phantom (Extra) node survived build: ${locationId}`)
+  }
+}
+
+for (const sources of Object.values(itemIndex.items)) {
+  for (const source of sources) {
+    if (source.locationId.includes('(Extra)')) {
+      throw new Error(`Phantom (Extra) drop row survived build: ${source.locationId}`)
+    }
+  }
+}
+
+const atramentumSources = itemIndex.items.Atramentum ?? []
+const vesperAtramentum = atramentumSources.filter((s) => s.locationId.includes('Vesper Relay'))
+if (vesperAtramentum.length !== 1) {
+  throw new Error(
+    `Atramentum at Vesper Relay: expected exactly 1 synthetic source, got ${vesperAtramentum.length}`,
+  )
+}
+const synthetic = vesperAtramentum[0] as {
+  dropType: string
+  tags?: string[]
+  gameMode: string
+}
+if (synthetic.dropType !== 'MapContainer') {
+  throw new Error(`Atramentum Vesper Relay: expected MapContainer, got ${synthetic.dropType}`)
+}
+if (!synthetic.tags?.includes('update42-heuristic')) {
+  throw new Error('Atramentum Vesper Relay: missing update42-heuristic tag')
+}
+if (synthetic.gameMode !== "Follie's Hunt") {
+  throw new Error(`Atramentum Vesper Relay: expected Follie's Hunt, got ${synthetic.gameMode}`)
+}
+if (atramentumSources.some((s) => s.locationId.includes('Vesper Relay') && (s as { dropType: string }).dropType === 'MissionReward')) {
+  throw new Error('Atramentum Vesper Relay: native MissionReward row survived strip')
+}
+
+const virtualEnemyNodes = Object.keys(nodeLevels.nodes).filter((id) => id.startsWith('Enemy - '))
+if (virtualEnemyNodes.length === 0) {
+  throw new Error('No Enemy - virtual entity nodes in node_levels — UI toggle regression')
 }
 
 console.log(`Validated index files (data version ${version})`)

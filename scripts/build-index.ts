@@ -58,7 +58,39 @@ const CONTAINER_META_OVERRIDES = [
       sourceEntity: 'Argon Pegmatite',
     },
   },
+  {
+    locationIds: ['Venus - Vesper Relay'],
+    itemName: 'Atramentum',
+    gameMode: "Follie's Hunt",
+    syntheticSource: {
+      dropType: 'MapContainer' as const,
+      rotation: 'A',
+      baseChance: 100,
+      tadr: 1.0,
+      tags: ['update42-heuristic', 'balloon-pop'],
+      sourceEntity: 'Atramentum Balloons & Relay Extraction',
+    },
+  },
 ] as const
+
+function stripAtramentumVesperApiDrops(index: Record<string, DropSource[]>): number {
+  const sources = index['Atramentum']
+  if (!sources) return 0
+  const before = sources.length
+  index['Atramentum'] = sources.filter((s) => !s.locationId.includes('Vesper Relay'))
+  return before - index['Atramentum'].length
+}
+
+function purgeExtraLocationSources(index: Record<string, DropSource[]>): number {
+  let removed = 0
+  for (const [itemName, sources] of Object.entries(index)) {
+    const kept = sources.filter((s) => !s.locationId.includes('(Extra)'))
+    removed += sources.length - kept.length
+    if (kept.length) index[itemName] = kept
+    else delete index[itemName]
+  }
+  return removed
+}
 
 function extractBaseName(locId: string): string {
   return locId.replace(/^(Enemy|Boss) - /, '')
@@ -198,6 +230,10 @@ function buildNodeLevels(wfcdNodes: WfcdNode[]): NodeLevelsOutput {
     mNode: 1.0,
     skillTier: 'expert',
     tags: ['descendia'],
+  }
+
+  if (nodes['Venus - Vesper Relay']) {
+    nodes['Venus - Vesper Relay'].gameMode = "Follie's Hunt"
   }
 
   return { nodes }
@@ -426,6 +462,11 @@ async function main() {
   const manualCount = ingestManualDrops(manualDrops as import('./lib/manual-drops.js').ManualDropEntry[], addEntry, index)
   console.log(`Indexed ${manualCount} manual drop row(s)`)
 
+  const atramentumStripped = stripAtramentumVesperApiDrops(index)
+  if (atramentumStripped > 0) {
+    console.log(`Stripped ${atramentumStripped} native Atramentum Vesper Relay API row(s)`)
+  }
+
   let containerInjected = 0
   for (const override of CONTAINER_META_OVERRIDES) {
     for (const locId of override.locationIds) {
@@ -524,28 +565,29 @@ async function main() {
   }
 
   dedupeAndMergeItemSources(index)
+
+  const extraPurged = purgeExtraLocationSources(index)
+  if (extraPurged > 0) console.log(`Purged ${extraPurged} (Extra) phantom drop row(s)`)
+
   validateIndex(index)
   const itemNames = Object.keys(index).sort((a, b) => a.localeCompare(b))
   const itemIndex: ItemIndexOutput = { items: index, itemNames }
 
   let finalNodes = nodes.filter((node) => {
+    if (node.locationId.includes('(Extra)')) return false
     if (node.locationId.startsWith('Enemy - ') || node.locationId.startsWith('Boss - ')) {
       const baseName = extractBaseName(node.locationId)
-      if (successfullyMappedEnemies.has(baseName) || IGNORED_ENTITIES.has(baseName)) {
-        return false // Mapped or ignored.
-      } else {
-        // Unmapped entity!
-        console.warn(`[PRAPA MAINTENANCE] Unmapped Entity stripped from graph: "${baseName}".`)
-        // THE KILL SWITCH: Change this from `return true` to `return false`.
-        // We MUST delete it from the JSON so the engine cannot route to ghost nodes!
-        return false
+      if (successfullyMappedEnemies.has(baseName)) {
+        return false // Duplicate remapped to a physical star-chart node.
       }
+      if (IGNORED_ENTITIES.has(baseName)) {
+        return true // Canonical virtual entity — keep for UI toggle.
+      }
+      console.warn(`[PRAPA MAINTENANCE] Unmapped Entity stripped from graph: "${baseName}".`)
+      return false
     }
     return true
   })
-
-  // Reassign the array to strip out any node that is purely an unmapped "Enemy - " container.
-  finalNodes = finalNodes.filter(node => !node.locationId.startsWith("Enemy - "));
 
   const finalNodesRecord: Record<string, NodeMeta> = {}
   for (const node of finalNodes) {

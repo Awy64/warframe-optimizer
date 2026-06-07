@@ -9,6 +9,8 @@ use crate::constants::{
     EXCAVATION_EXPERT_ROTATION_MINUTES, DISRUPTION_EXPERT_ROTATION_MINUTES,
     CAPTURE_TTX_FLOOR_MINUTES, EXTERMINATE_TTX_FLOOR_MINUTES, CACHES_SEARCH_FRICTION_MINUTES,
 };
+use crate::edge_cases::follies_hunt::atramentum_yield_per_minute;
+use crate::edge_cases::follies_hunt::is_update42_heuristic;
 use crate::drop_type::DropType;
 use crate::kpm::calculate_kpm;
 use crate::types::{ArsenalState, DropSource, Objective};
@@ -146,6 +148,10 @@ pub fn calculate_item_yield(
             return 0.0;
         }
         return (yield_per_spawn / interval) * resource_booster;
+    }
+
+    if is_update42_heuristic(&source.tags) {
+        return atramentum_yield_per_minute(arsenal);
     }
 
     if source.drop_type == DropType::MapContainer {
@@ -464,6 +470,30 @@ mod tests {
         let yield_val = calculate_item_yield(&source, 1.0, 1.0, 1.0, &arsenal);
         assert!((yield_val - 0.132).abs() < 0.001);
         assert!(yield_val < 1.0);
+    }
+
+    #[test]
+    fn update42_heuristic_bypasses_map_container_tadr() {
+        let nekros = ArsenalState {
+            has_nekros: true,
+            squad_size: 1,
+            ..ArsenalState::default()
+        };
+        let source = DropSource {
+            location_id: "Venus - Vesper Relay".to_string(),
+            drop_type: DropType::MapContainer,
+            game_mode: "Follie's Hunt".to_string(),
+            rotation: "A".to_string(),
+            base_chance: 100.0,
+            tadr: 1.0,
+            time_gate_minutes: None,
+            tags: vec!["update42-heuristic".to_string(), "balloon-pop".to_string()],
+            spawn_interval_minutes: None,
+            drop_yield: None,
+            source_entity: Some("Atramentum Balloons & Relay Extraction".to_string()),
+        };
+        let yield_val = calculate_item_yield(&source, 1.0, 2.5, 0.1, &nekros);
+        assert!((yield_val - (24.0 / 14.0)).abs() < 0.001);
     }
 
     #[test]

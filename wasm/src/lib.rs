@@ -15,8 +15,10 @@ use wasm_bindgen::prelude::*;
 use edge_cases::access::{blocked_by_zariman, is_source_accessible};
 use edge_cases::async_gate::{async_night_cycle_warning, ASYNC_NIGHT_WARNING};
 use edge_cases::descendia::{descendia_survivability_warning, vinquibus_warning};
+use edge_cases::follies_hunt::{base_completion_time, effective_m_loot, is_update42_heuristic};
 use edge_cases::hollvania::hollvania_yield_bonus;
 use edge_cases::omnia::apply_omnia_cost_multiplier;
+use edge_cases::playability::is_routable_node;
 use drop_type::DropType;
 use kpm::{calculate_kpm, reference_horde_kpm};
 use loot::calculate_m_loot;
@@ -97,6 +99,9 @@ fn detect_pathing_failures(
 
         for source in sources {
             let meta = resolve_node_meta(&source.location_id, &source.game_mode, nodes);
+            if !is_routable_node(&source.location_id, &meta.game_mode) {
+                continue;
+            }
             if is_source_accessible(source, &meta, arsenal, &objective.item_name) {
                 any_accessible = true;
                 break;
@@ -132,10 +137,11 @@ fn sum_item_yield_at_location(
         if source.location_id != location_id {
             continue;
         }
+        let m_loot_node = effective_m_loot(location_id, &meta.game_mode, m_loot);
         y += calculate_item_yield(
             source,
             meta.m_node as f32,
-            m_loot,
+            m_loot_node,
             skill,
             arsenal,
         );
@@ -183,6 +189,10 @@ fn compute_global_max_yields(
         for (location_id, loc_sources) in by_location {
             let meta = resolve_node_meta(&location_id, &loc_sources[0].game_mode, nodes);
 
+            if !is_routable_node(&location_id, &meta.game_mode) {
+                continue;
+            }
+
             if !skill_allows_tier(skill, &meta.skill_tier) {
                 continue;
             }
@@ -195,11 +205,12 @@ fn compute_global_max_yields(
             if owned.is_empty() {
                 continue;
             }
+            let m_loot_node = effective_m_loot(&location_id, &meta.game_mode, m_loot);
             let y = sum_item_yield_at_location(
                 &owned,
                 &location_id,
                 &meta,
-                m_loot,
+                m_loot_node,
                 skill as f32,
                 arsenal,
                 objective_has_eximus,
@@ -353,10 +364,11 @@ pub fn compute_ranked_nodes(
                 continue;
             }
 
+            let m_loot_node = effective_m_loot(&location_id, &meta.game_mode, m_loot);
             let y_item = calculate_item_yield(
                 source,
                 meta.m_node as f32,
-                m_loot,
+                m_loot_node,
                 skill as f32,
                 &arsenal,
             );
@@ -364,7 +376,13 @@ pub fn compute_ranked_nodes(
             *yields_at_node.entry(objective.item_name.clone()).or_insert(0.0) += y_item;
 
             // Calculate rotation gate/minimum run time for this source
-            if source.drop_type != DropType::MapContainer {
+            if is_update42_heuristic(&source.tags) {
+                let gate = base_completion_time(arsenal.squad_size);
+                let entry = gate_times_at_node.entry(objective.item_name.clone()).or_insert(0.0);
+                if gate > *entry {
+                    *entry = gate;
+                }
+            } else if source.drop_type != DropType::MapContainer {
                 let is_search = source.tags.iter().any(|t| t == "search-resource");
                 let has_caches = source.tags.iter().any(|t| t == "caches");
                 let gate_time = crate::prapa::calculate_min_run_time(
