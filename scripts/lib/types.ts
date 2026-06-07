@@ -8,6 +8,7 @@ export type DropType =
   | 'Blueprint'
   | 'Key'
   | 'Sortie'
+  | 'MapContainer'
 
 export interface DropSource {
   locationId: string

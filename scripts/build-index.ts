@@ -31,6 +31,35 @@ const PUBLIC = join(ROOT, 'public')
 const WFCD_BASE = 'https://raw.githubusercontent.com/WFCD/warframe-drop-data/main/data'
 const NODE_URL = 'https://raw.githubusercontent.com/WFCD/warframe-items/master/data/json/Node.json'
 
+const CONTAINER_META_OVERRIDES = [
+  {
+    locationIds: ['Void - Hepit', 'Void - Ukko'],
+    itemName: 'Argon Crystal',
+    gameMode: 'Capture',
+    syntheticSource: {
+      dropType: 'MapContainer' as const,
+      rotation: 'A',
+      baseChance: 100,
+      tadr: 0.66,
+      tags: ['container-heuristic'],
+      sourceEntity: 'Argon Pegmatite',
+    },
+  },
+  {
+    locationIds: ['Void - Teshub', 'Void - Oxomoco'],
+    itemName: 'Argon Crystal',
+    gameMode: 'Exterminate',
+    syntheticSource: {
+      dropType: 'MapContainer' as const,
+      rotation: 'A',
+      baseChance: 100,
+      tadr: 0.40,
+      tags: ['container-heuristic'],
+      sourceEntity: 'Argon Pegmatite',
+    },
+  },
+] as const
+
 function extractBaseName(locId: string): string {
   return locId.replace(/^(Enemy|Boss) - /, '')
 }
@@ -396,6 +425,19 @@ async function main() {
 
   const manualCount = ingestManualDrops(manualDrops as import('./lib/manual-drops.js').ManualDropEntry[], addEntry, index)
   console.log(`Indexed ${manualCount} manual drop row(s)`)
+
+  let containerInjected = 0
+  for (const override of CONTAINER_META_OVERRIDES) {
+    for (const locId of override.locationIds) {
+      addEntry(index, override.itemName, buildDropSource({
+        locationId: locId,
+        gameMode: override.gameMode,
+        ...override.syntheticSource,
+      }))
+      containerInjected++
+    }
+  }
+  console.log(`Injected ${containerInjected} container heuristic drop row(s)`)
 
   tagSteelPathSources(index)
   dedupeAndMergeItemSources(index)

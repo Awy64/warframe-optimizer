@@ -17,6 +17,7 @@ use edge_cases::async_gate::{async_night_cycle_warning, ASYNC_NIGHT_WARNING};
 use edge_cases::descendia::{descendia_survivability_warning, vinquibus_warning};
 use edge_cases::hollvania::hollvania_yield_bonus;
 use edge_cases::omnia::apply_omnia_cost_multiplier;
+use drop_type::DropType;
 use kpm::{calculate_kpm, reference_horde_kpm};
 use loot::calculate_m_loot;
 use prapa::{calculate_etc_cost, calculate_item_yield, skill_allows_tier, is_standard_mission_mode};
@@ -363,19 +364,21 @@ pub fn compute_ranked_nodes(
             *yields_at_node.entry(objective.item_name.clone()).or_insert(0.0) += y_item;
 
             // Calculate rotation gate/minimum run time for this source
-            let is_search = source.tags.iter().any(|t| t == "search-resource");
-            let has_caches = source.tags.iter().any(|t| t == "caches");
-            let gate_time = crate::prapa::calculate_min_run_time(
-                &source.game_mode,
-                &source.rotation,
-                skill as f32,
-                is_search,
-                has_caches,
-                &arsenal,
-            );
-            let entry = gate_times_at_node.entry(objective.item_name.clone()).or_insert(0.0);
-            if gate_time > *entry {
-                *entry = gate_time;
+            if source.drop_type != DropType::MapContainer {
+                let is_search = source.tags.iter().any(|t| t == "search-resource");
+                let has_caches = source.tags.iter().any(|t| t == "caches");
+                let gate_time = crate::prapa::calculate_min_run_time(
+                    &source.game_mode,
+                    &source.rotation,
+                    skill as f32,
+                    is_search,
+                    has_caches,
+                    &arsenal,
+                );
+                let entry = gate_times_at_node.entry(objective.item_name.clone()).or_insert(0.0);
+                if gate_time > *entry {
+                    *entry = gate_time;
+                }
             }
 
             let entry_matched = matched_items

@@ -9,6 +9,7 @@ use crate::constants::{
     EXCAVATION_EXPERT_ROTATION_MINUTES, DISRUPTION_EXPERT_ROTATION_MINUTES,
     CAPTURE_TTX_FLOOR_MINUTES, EXTERMINATE_TTX_FLOOR_MINUTES, CACHES_SEARCH_FRICTION_MINUTES,
 };
+use crate::drop_type::DropType;
 use crate::kpm::calculate_kpm;
 use crate::types::{ArsenalState, DropSource, Objective};
 
@@ -145,6 +146,11 @@ pub fn calculate_item_yield(
             return 0.0;
         }
         return (yield_per_spawn / interval) * resource_booster;
+    }
+
+    if source.drop_type == DropType::MapContainer {
+        let resource_booster = calculate_resource_booster(arsenal);
+        return (source.tadr as f32) * resource_booster;
     }
 
     let is_search = source.tags.iter().any(|t| t == "search-resource");
@@ -303,6 +309,22 @@ mod tests {
     use crate::drop_type::DropType;
     use crate::types::{ArsenalState, DropSource};
 
+    fn map_container_source(tadr: f64, game_mode: &str) -> DropSource {
+        DropSource {
+            location_id: "Void - Hepit".to_string(),
+            drop_type: DropType::MapContainer,
+            game_mode: game_mode.to_string(),
+            rotation: "A".to_string(),
+            base_chance: 100.0,
+            tadr,
+            time_gate_minutes: None,
+            tags: vec!["container-heuristic".to_string(), "search-resource".to_string()],
+            spawn_interval_minutes: None,
+            drop_yield: None,
+            source_entity: Some("Argon Pegmatite".to_string()),
+        }
+    }
+
     fn bounty_source(tadr: f64) -> DropSource {
         DropSource {
             location_id: "Cetus Bounty - Level 10 - 30 Cetus Bounty".to_string(),
@@ -442,6 +464,41 @@ mod tests {
         let yield_val = calculate_item_yield(&source, 1.0, 1.0, 1.0, &arsenal);
         assert!((yield_val - 0.132).abs() < 0.001);
         assert!(yield_val < 1.0);
+    }
+
+    #[test]
+    fn map_container_yield_uses_direct_tadr() {
+        let arsenal = ArsenalState::default();
+        let source = map_container_source(0.66, "Capture");
+        let yield_val = calculate_item_yield(&source, 1.0, 4.0, 1.0, &arsenal);
+        assert!((yield_val - 0.66).abs() < 0.001);
+    }
+
+    #[test]
+    fn map_container_ignores_solo_kpm_penalty() {
+        let solo = ArsenalState {
+            squad_size: 1,
+            ..ArsenalState::default()
+        };
+        let squad = ArsenalState {
+            squad_size: 4,
+            ..ArsenalState::default()
+        };
+        let source = map_container_source(0.66, "Capture");
+        let solo_yield = calculate_item_yield(&source, 1.0, 4.0, 1.0, &solo);
+        let squad_yield = calculate_item_yield(&source, 1.0, 4.0, 1.0, &squad);
+        assert!((solo_yield - squad_yield).abs() < 0.001);
+        assert!((solo_yield - 0.66).abs() < 0.001);
+    }
+
+    #[test]
+    fn map_container_ignores_skill_coeff() {
+        let arsenal = ArsenalState::default();
+        let source = map_container_source(0.40, "Exterminate");
+        let novice = calculate_item_yield(&source, 1.0, 1.0, 0.1, &arsenal);
+        let expert = calculate_item_yield(&source, 1.0, 1.0, 1.0, &arsenal);
+        assert!((novice - 0.40).abs() < 0.001);
+        assert!((expert - 0.40).abs() < 0.001);
     }
 
     #[test]
