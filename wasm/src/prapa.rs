@@ -315,6 +315,7 @@ mod tests {
             tags: vec![],
             spawn_interval_minutes: None,
             drop_yield: None,
+            source_entity: None,
         }
     }
 
@@ -338,6 +339,7 @@ mod tests {
             },
             spawn_interval_minutes: None,
             drop_yield: None,
+            source_entity: None,
         }
     }
 
@@ -456,6 +458,7 @@ mod tests {
             tags: vec![INTERVAL_SPAWN_TAG.to_string()],
             spawn_interval_minutes: Some(6.0),
             drop_yield: Some(2.0),
+            source_entity: None,
         };
         let yield_per_min = calculate_item_yield(&source, 1.0, 1.0, 1.0, &arsenal);
         assert!((yield_per_min - (2.0 / 6.0)).abs() < 0.001);

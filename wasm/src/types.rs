@@ -76,6 +76,8 @@ pub struct DropSource {
     pub spawn_interval_minutes: Option<f64>,
     #[serde(default)]
     pub drop_yield: Option<f64>,
+    #[serde(default)]
+    pub source_entity: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

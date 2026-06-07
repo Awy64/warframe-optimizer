@@ -21,6 +21,7 @@ export interface DropSource {
   tags?: string[]
   spawnIntervalMinutes?: number
   dropYield?: number
+  sourceEntity?: string
 }
 
 export type SkillTier = 'baseline' | 'intermediate' | 'expert'

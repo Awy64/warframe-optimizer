@@ -1,4 +1,6 @@
 import { formatDuration } from '../../lib/formatDuration'
+import { useOptimizerStore } from '../../stores/optimizerStore'
+import { useMemo } from 'react'
 
 interface RouteStep {
   stepNumber: number
@@ -27,6 +29,27 @@ function StepRow({
   isLast: boolean
   compact: boolean
 }) {
+  const itemIndex = useOptimizerStore((s) => s.itemIndex)
+
+  const targetSuffix = useMemo(() => {
+    if (!itemIndex) return ''
+    const targets: string[] = []
+    const itemNames = step.items && step.items.length > 0
+      ? step.items.map(i => i.itemName)
+      : [step.itemName]
+
+    for (const itemName of itemNames) {
+      const sources = itemIndex.items[itemName] ?? []
+      const matchedSource = sources.find((s) => s.locationId === step.locationId)
+      if (matchedSource?.sourceEntity) {
+        targets.push(matchedSource.sourceEntity)
+      }
+    }
+    if (targets.length === 0) return ''
+    const uniqueTargets = Array.from(new Set(targets))
+    return ` (Target: ${uniqueTargets.join(', ')})`
+  }, [itemIndex, step.locationId, step.items, step.itemName])
+
   return (
     <li className={`relative flex gap-4.5 ${compact ? 'pb-4' : 'pb-6'} last:pb-0`}>
       {!isLast && (
@@ -52,7 +75,7 @@ function StepRow({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <p className={`font-bold text-gray-200 uppercase tracking-wide ${compact ? 'text-xs' : 'text-sm'}`}>
-              {step.locationId}
+              {step.locationId}{targetSuffix}
             </p>
             <p className="text-[10px] text-tenno-muted uppercase tracking-wider font-semibold mt-0.5">
               {step.gameMode}

@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { formatDuration } from '../../lib/formatDuration'
-import type { RoutePlan } from '../../lib/routeItinerary'
+import type { RoutePlan, RouteStep } from '../../lib/routeItinerary'
 import { RouteTimeline } from './RouteTimeline'
+import { useOptimizerStore } from '../../stores/optimizerStore'
 
 interface GoldenPathProps {
   goldenPath: {
@@ -15,6 +16,31 @@ export function GoldenPath({ goldenPath, onSelectStarter }: GoldenPathProps) {
   const { primaryPlan, alternativeStarters } = goldenPath
   const [showAlternatives, setShowAlternatives] = useState(false)
   const totalLabel = formatDuration(primaryPlan.baseEtcMinutes, true)
+  const itemIndex = useOptimizerStore((s) => s.itemIndex)
+
+  const getTargetSuffix = (locationId: string, steps: RouteStep[]) => {
+    if (!itemIndex) return ''
+    const step = steps.find(s => s.locationId === locationId)
+    if (!step) return ''
+    const targets: string[] = []
+    const itemNames = step.items && step.items.length > 0
+      ? step.items.map(i => i.itemName)
+      : [step.itemName]
+    for (const itemName of itemNames) {
+      const sources = itemIndex.items[itemName] ?? []
+      const matchedSource = sources.find((s) => s.locationId === locationId)
+      if (matchedSource?.sourceEntity) {
+        targets.push(matchedSource.sourceEntity)
+      }
+    }
+    if (targets.length === 0) return ''
+    const uniqueTargets = Array.from(new Set(targets))
+    return ` (Target: ${uniqueTargets.join(', ')})`
+  }
+
+  const primarySuffix = useMemo(() => {
+    return getTargetSuffix(primaryPlan.startingLocationId, primaryPlan.steps)
+  }, [itemIndex, primaryPlan])
 
   return (
     <section className="overflow-hidden rounded-xl border border-orokin/30 bg-gradient-to-b from-tenno-panel/90 to-tenno-panel/40 shadow-lg shadow-black/30">
@@ -29,7 +55,7 @@ export function GoldenPath({ goldenPath, onSelectStarter }: GoldenPathProps) {
             </h3>
             <p className="mt-1 text-xs text-tenno-muted">
               Optimal starting location:{' '}
-              <span className="text-tenno-cyan font-bold">{primaryPlan.startingLocationId}</span>
+              <span className="text-tenno-cyan font-bold">{primaryPlan.startingLocationId}{primarySuffix}</span>
             </p>
           </div>
           {alternativeStarters.length > 0 && (
@@ -65,29 +91,32 @@ export function GoldenPath({ goldenPath, onSelectStarter }: GoldenPathProps) {
 
             {showAlternatives && (
               <div className="mt-3 space-y-3">
-                {alternativeStarters.map((plan) => (
-                  <button
-                    key={plan.startingLocationId}
-                    type="button"
-                    onClick={() => onSelectStarter(plan.startingLocationId)}
-                    className="w-full text-left rounded-lg border border-tenno-border bg-tenno-bg/20 p-3 hover:border-tenno-cyan/40 hover:bg-tenno-cyan/5 transition duration-150 cursor-pointer group block"
-                  >
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs font-semibold text-gray-200 group-hover:text-tenno-cyan transition">
-                        Start at {plan.startingLocationId}
-                        <span className="ml-2 text-[10px] font-normal text-tenno-muted">
-                          ({formatDuration(plan.baseEtcMinutes, true)} total)
+                {alternativeStarters.map((plan) => {
+                  const altSuffix = getTargetSuffix(plan.startingLocationId, plan.steps)
+                  return (
+                    <button
+                      key={plan.startingLocationId}
+                      type="button"
+                      onClick={() => onSelectStarter(plan.startingLocationId)}
+                      className="w-full text-left rounded-lg border border-tenno-border bg-tenno-bg/20 p-3 hover:border-tenno-cyan/40 hover:bg-tenno-cyan/5 transition duration-150 cursor-pointer group block"
+                    >
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs font-semibold text-gray-200 group-hover:text-tenno-cyan transition">
+                          Start at {plan.startingLocationId}{altSuffix}
+                          <span className="ml-2 text-[10px] font-normal text-tenno-muted">
+                            ({formatDuration(plan.baseEtcMinutes, true)} total)
+                          </span>
+                        </p>
+                        <span className="text-[10px] font-bold text-tenno-cyan uppercase tracking-wider opacity-0 group-hover:opacity-100 transition duration-150">
+                          Select Route &rarr;
                         </span>
-                      </p>
-                      <span className="text-[10px] font-bold text-tenno-cyan uppercase tracking-wider opacity-0 group-hover:opacity-100 transition duration-150">
-                        Select Route &rarr;
-                      </span>
-                    </div>
-                    <div className="mt-2.5">
-                      <RouteTimeline plan={plan} compact />
-                    </div>
-                  </button>
-                ))}
+                      </div>
+                      <div className="mt-2.5">
+                        <RouteTimeline plan={plan} compact />
+                      </div>
+                    </button>
+                  )
+                })}
               </div>
             )}
           </div>

@@ -80,6 +80,7 @@ mod tests {
             tags: tags.into_iter().map(str::to_string).collect(),
             spawn_interval_minutes: None,
             drop_yield: None,
+            source_entity: None,
         }
     }
 
@@ -130,6 +131,7 @@ mod tests {
             tags: vec![],
             spawn_interval_minutes: None,
             drop_yield: None,
+            source_entity: None,
         };
         assert!((calculate_kpm(0.1, &a, &source) - 31.5).abs() < 0.01);
     }

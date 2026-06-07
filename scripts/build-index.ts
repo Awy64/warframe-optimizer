@@ -485,6 +485,7 @@ async function main() {
           updatedSources.push({
             ...source,
             locationId: physicalNode,
+            sourceEntity: enemyName,
             tags,
           })
         }
@@ -500,7 +501,7 @@ async function main() {
   const itemNames = Object.keys(index).sort((a, b) => a.localeCompare(b))
   const itemIndex: ItemIndexOutput = { items: index, itemNames }
 
-  const finalNodes = nodes.filter((node) => {
+  let finalNodes = nodes.filter((node) => {
     if (node.locationId.startsWith('Enemy - ') || node.locationId.startsWith('Boss - ')) {
       const baseName = extractBaseName(node.locationId)
       if (successfullyMappedEnemies.has(baseName) || IGNORED_ENTITIES.has(baseName)) {
@@ -515,6 +516,9 @@ async function main() {
     }
     return true
   })
+
+  // Reassign the array to strip out any node that is purely an unmapped "Enemy - " container.
+  finalNodes = finalNodes.filter(node => !node.locationId.startsWith("Enemy - "));
 
   const finalNodesRecord: Record<string, NodeMeta> = {}
   for (const node of finalNodes) {

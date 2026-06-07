@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { formatDuration } from '../../lib/formatDuration'
+import { useOptimizerStore } from '../../stores/optimizerStore'
 
 interface MatchedItem {
   itemName: string
@@ -104,6 +105,7 @@ function getEnemyLocationDescription(locationId: string): string {
 }
 
 export function NodeTable({ nodes, displayLimit }: NodeTableProps) {
+  const itemIndex = useOptimizerStore((s) => s.itemIndex)
   const [sortBy, setSortBy] = useState<SortField>('rank')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
 
@@ -209,6 +211,20 @@ export function NodeTable({ nodes, displayLimit }: NodeTableProps) {
         <tbody className="divide-y divide-tenno-border/40">
           {visibleNodes.map((node) => {
             const isEnemyNode = node.locationId.startsWith('Enemy - ')
+            const targetSuffix = (() => {
+              if (!itemIndex) return ''
+              const targets: string[] = []
+              for (const item of node.matchedItems) {
+                const sources = itemIndex.items[item.itemName] ?? []
+                const matchedSource = sources.find((s) => s.locationId === node.locationId)
+                if (matchedSource?.sourceEntity) {
+                  targets.push(matchedSource.sourceEntity)
+                }
+              }
+              if (targets.length === 0) return ''
+              const uniqueTargets = Array.from(new Set(targets))
+              return ` (Target: ${uniqueTargets.join(', ')})`
+            })()
             return (
               <tr
                 key={node.locationId}
@@ -218,7 +234,7 @@ export function NodeTable({ nodes, displayLimit }: NodeTableProps) {
                 <td className="px-4 py-3">
                   <div className="flex flex-col">
                     <div className="flex items-center gap-1.5 font-bold text-gray-200">
-                      <span>{node.locationId}</span>
+                      <span>{node.locationId}{targetSuffix}</span>
                       {node.warningsResolved.length > 0 && (
                         <span className="group relative inline-flex">
                           <button
