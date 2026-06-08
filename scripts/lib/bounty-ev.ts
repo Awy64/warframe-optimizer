@@ -1,7 +1,17 @@
 import type { DropSource } from './types.js'
-import { bountyLocationId, normalizeItemName } from './normalize.js'
+import { bountyLocationId, normalizeItemName, parseItemQuantity } from './normalize.js'
 import { buildDropSource } from './sanitize.js'
 import { bountyClearMinutes } from './tadr.js'
+
+/** Currency item -> WASM currency tag (selects the booster taxonomy at runtime). */
+const CURRENCY_TAG: Record<string, string> = {
+  Endo: 'currency-endo',
+  Credits: 'currency-credits',
+  Credit: 'currency-credits',
+  Kuva: 'currency-kuva',
+  'Void Traces': 'currency-traces',
+  'Void Trace': 'currency-traces',
+}
 
 interface BountyRewardEntry {
   itemName: string
@@ -118,6 +128,61 @@ export function parseBountyTier(
       tadr: evPercent / effectiveMinutes,
     })
     if (source) entries.push({ itemName, source })
+  }
+
+  return entries
+}
+
+/**
+ * Currency bounty bundles (Endo / Credits / Kuva / Void Traces). Unlike farmable items,
+ * the bundle quantity (e.g. "4000 Endo") matters, so we compute expected units/min including
+ * quantity and emit a currency-* tagged source. Pools are alternatives -> take the max units/min.
+ */
+export function parseBountyCurrencyBundles(
+  region: string,
+  tier: BountyTier,
+  dropType: DropSource['dropType'] = 'BountyReward',
+): BountyItemSource[] {
+  const clearMinutes = bountyClearMinutes(tier.bountyLevel)
+  const locationId = bountyLocationId(region, tier.bountyLevel)
+  const best = new Map<string, number>()
+
+  for (const rewards of Object.values(tier.rewards)) {
+    const poolUnits = new Map<string, { units: number; minStage: number }>()
+    for (const reward of rewards) {
+      const name = normalizeItemName(reward.itemName)
+      if (!CURRENCY_TAG[name]) continue
+      const qty = parseItemQuantity(reward.itemName)
+      const stageWeight = countStages(reward.stage)
+      const units = (reward.chance / 100) * qty * stageWeight
+      const minStage = minStageFromReward(reward.stage)
+      const existing = poolUnits.get(name)
+      if (!existing) poolUnits.set(name, { units, minStage })
+      else {
+        existing.units += units
+        existing.minStage = Math.min(existing.minStage, minStage)
+      }
+    }
+    for (const [name, { units, minStage }] of poolUnits) {
+      const effectiveMinutes = clearMinutes + bountyRampDeadMinutes(minStage)
+      const unitsPerMin = units / effectiveMinutes
+      const prev = best.get(name)
+      if (prev === undefined || unitsPerMin > prev) best.set(name, unitsPerMin)
+    }
+  }
+
+  const entries: BountyItemSource[] = []
+  for (const [name, unitsPerMin] of best) {
+    const source = buildDropSource({
+      locationId,
+      dropType,
+      gameMode: 'Bounty',
+      rotation: 'Full Clear',
+      baseChance: 100,
+      tadr: unitsPerMin,
+      tags: [CURRENCY_TAG[name]],
+    })
+    if (source) entries.push({ itemName: name, source })
   }
 
   return entries

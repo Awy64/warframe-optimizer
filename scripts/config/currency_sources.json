@@ -1,0 +1,113 @@
+{
+  "_comment": "Hand-authored hero-farm sources for currencies (Endo, Credits, Void Traces, Kuva). `tadr` is expected units/min PRE-booster and PRE-loot; the WASM applies the correct booster taxonomy per currency-* tag (Endo=mod-drop, Credits=credit+Chroma, Traces/Kuva=resource). Sources tagged `loot-scalable` additionally scale with Nekros/Khora loot frames. Numbers are calibrated heuristics from the 2026 resource guide + wiki, not exact drop tables.",
+  "sources": [
+    {
+      "itemName": "Endo",
+      "locationId": "Sedna - Vodyanoi",
+      "dropType": "MissionReward",
+      "gameMode": "Arena",
+      "tadr": 100,
+      "tags": ["currency-endo", "loot-scalable"],
+      "sourceEntity": "Grineer Executioners (Rathuum)"
+    },
+    {
+      "itemName": "Endo",
+      "locationId": "Sedna - Yam",
+      "dropType": "MissionReward",
+      "gameMode": "Arena",
+      "tadr": 70,
+      "tags": ["currency-endo", "loot-scalable"],
+      "sourceEntity": "Grineer Executioners (Rathuum)"
+    },
+    {
+      "itemName": "Endo",
+      "locationId": "Arbitration - Vitus Exchange",
+      "dropType": "MissionReward",
+      "gameMode": "Survival",
+      "tadr": 150,
+      "tags": ["currency-endo"],
+      "sourceEntity": "Arbitration Endo bundles + Vitus statues"
+    },
+    {
+      "itemName": "Endo",
+      "locationId": "Veil Proxima - Railjack",
+      "dropType": "MissionReward",
+      "gameMode": "Railjack",
+      "tadr": 50,
+      "tags": ["currency-endo"],
+      "sourceEntity": "Wreckage scrap (150-225 Endo each)"
+    },
+    {
+      "itemName": "Credits",
+      "locationId": "Fortuna - Profit-Taker",
+      "dropType": "MissionReward",
+      "gameMode": "Assassination",
+      "tadr": 25000,
+      "tags": ["currency-credits"],
+      "sourceEntity": "Profit-Taker Orb (125k base drop)"
+    },
+    {
+      "itemName": "Credits",
+      "locationId": "Neptune - The Index",
+      "dropType": "MissionReward",
+      "gameMode": "Arena",
+      "tadr": 83000,
+      "tags": ["currency-credits"],
+      "sourceEntity": "The Index High Risk (250k/round)"
+    },
+    {
+      "itemName": "Credits",
+      "locationId": "Neptune - Laomedeia",
+      "dropType": "MissionReward",
+      "gameMode": "Disruption",
+      "tadr": 25000,
+      "tags": ["currency-credits"],
+      "sourceEntity": "Disruption Credit Caches (B 30k / C 50k)"
+    },
+    {
+      "itemName": "Credits",
+      "locationId": "Höllvania - Legacyte Harvest",
+      "dropType": "MissionReward",
+      "gameMode": "Survival",
+      "tadr": 28500,
+      "tags": ["currency-credits", "hollvania"],
+      "sourceEntity": "Techrot Caches (100k base, 1999)"
+    },
+    {
+      "itemName": "Void Traces",
+      "locationId": "Void Fissure - Lith Capture",
+      "dropType": "MissionReward",
+      "gameMode": "Capture",
+      "tadr": 15,
+      "tags": ["currency-traces"],
+      "sourceEntity": "Reactant from corrupted enemies (Titania speedrun)"
+    },
+    {
+      "itemName": "Void Traces",
+      "locationId": "Zariman - Tuvul Commons",
+      "dropType": "MissionReward",
+      "gameMode": "Void Cascade",
+      "tadr": 20,
+      "tags": ["currency-traces"],
+      "sourceEntity": "Void Cascade fissure (sustained)"
+    },
+    {
+      "itemName": "Kuva",
+      "locationId": "Kuva Fortress - Taveuni",
+      "dropType": "MissionReward",
+      "gameMode": "Survival",
+      "tadr": 700,
+      "tags": ["currency-kuva"],
+      "sourceEntity": "Kuva Survival siphon clouds"
+    },
+    {
+      "itemName": "Kuva",
+      "locationId": "Arbitration - Vitus Exchange",
+      "dropType": "MissionReward",
+      "gameMode": "Survival",
+      "tadr": 2000,
+      "tags": ["currency-kuva"],
+      "sourceEntity": "Vitus Essence -> Kuva via Arbiters vendor"
+    }
+  ]
+}

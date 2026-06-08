@@ -506,6 +506,12 @@ pub fn compute_ranked_nodes(
         {
             warnings.push(ASYNC_NIGHT_WARNING.to_string());
         }
+        if matches.iter().any(|(o, _)| o.item_name == "Argon Crystal") {
+            warnings.push(
+                "Argon Crystal decays (~50% per day) — farm on-demand; it cannot be stockpiled"
+                    .to_string(),
+            );
+        }
 
         let node_kpm = matches
             .iter()

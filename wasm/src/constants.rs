@@ -6,6 +6,21 @@ pub const PLANETARY_HORDE_TAG: &str = "planetary-heuristic";
 pub const VINQUIBUS_WEAPON_MULT: f32 = 1.25;
 pub const BOOSTER_ACTIVE: f32 = 2.0;
 pub const BOOSTER_INACTIVE: f32 = 1.0;
+/// Chroma's Effigy doubles the value of credit drops placed beneath it.
+pub const CHROMA_EFFIGY_CREDIT_MULT: f32 = 2.0;
+/// Retriever mod expected-value pickup-duplication chances (per real wiki rates).
+pub const LOYAL_RETRIEVER_CHANCE: f32 = 0.13;
+pub const RESOURCEFUL_RETRIEVER_CHANCE: f32 = 0.18;
+pub const PROSPEROUS_RETRIEVER_CHANCE: f32 = 0.18;
+/// Smeeta Charm: 40% activation chance, of which 10% of buffs spawn a rare native resource.
+pub const SMEETA_CHARM_ACTIVATION: f32 = 0.40;
+pub const SMEETA_RARE_NATIVE_SUBCHANCE: f32 = 0.10;
+/// Approximate Charm activation cadence (procs per minute) used to size the rare-native EV.
+pub const SMEETA_PROCS_PER_MINUTE: f32 = 2.2;
+/// Chesa Kubrow Retrieve loot-corpse bonus (loot-corpse group, does not stack with Nekros).
+pub const CHESA_RETRIEVE_BONUS: f32 = 0.54;
+/// AoE container-break frames (Xaku Gaze / Limbo Cataclysm) pop more crates per run.
+pub const AOE_CONTAINER_MULT: f32 = 1.5;
 pub const FRICTION_COEFF: f32 = 0.05;
 pub const FRICTION_EXPONENT: f32 = 1.5;
 pub const COMFORT_LEVEL_SCALE: f32 = 250.0;

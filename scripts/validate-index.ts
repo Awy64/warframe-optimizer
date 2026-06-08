@@ -43,7 +43,7 @@ const nodeLevels = JSON.parse(readFileSync(join(PUBLIC, 'node_levels.json'), 'ut
   nodes: Record<string, { gameMode: string }>
 }
 const itemIndex = JSON.parse(readFileSync(join(PUBLIC, 'item_index.json'), 'utf8')) as {
-  items: Record<string, Array<{ locationId: string; gameMode: string; tags?: string[] }>>
+  items: Record<string, Array<{ locationId: string; gameMode: string; dropType?: string; tags?: string[] }>>
 }
 
 const EXPECTED_NODE_GAME_MODES: Record<string, string> = {
@@ -117,6 +117,60 @@ if (atramentumSources.some((s) => s.locationId.includes('Vesper Relay') && (s as
 const virtualEnemyNodes = Object.keys(nodeLevels.nodes).filter((id) => id.startsWith('Enemy - '))
 if (virtualEnemyNodes.length === 0) {
   throw new Error('No Enemy - virtual entity nodes in node_levels — UI toggle regression')
+}
+
+// --- Currency taxonomy invariants ---
+const CURRENCY_EXPECTED_TAG: Record<string, string> = {
+  Endo: 'currency-endo',
+  Credits: 'currency-credits',
+  'Void Traces': 'currency-traces',
+  Kuva: 'currency-kuva',
+}
+for (const [item, tag] of Object.entries(CURRENCY_EXPECTED_TAG)) {
+  const sources = itemIndex.items[item] ?? []
+  if (sources.length === 0) throw new Error(`Currency invariant: no sources for ${item}`)
+  const untagged = sources.filter((s) => !(s.tags ?? []).some((t) => t.startsWith('currency-')))
+  if (untagged.length > 0) {
+    throw new Error(
+      `Currency invariant: ${item} has ${untagged.length} untagged source(s) (e.g. ${untagged[0].locationId})`,
+    )
+  }
+  const wrongClass = sources.filter((s) => !(s.tags ?? []).includes(tag))
+  if (wrongClass.length > 0) {
+    throw new Error(
+      `Currency invariant: ${item} has source(s) missing ${tag} (e.g. ${wrongClass[0].locationId})`,
+    )
+  }
+}
+
+const endoVodyanoi = (itemIndex.items.Endo ?? []).find((s) => s.locationId === 'Sedna - Vodyanoi')
+if (!endoVodyanoi || !(endoVodyanoi.tags ?? []).includes('loot-scalable')) {
+  throw new Error('Currency invariant: Vodyanoi Endo arena missing or not loot-scalable')
+}
+
+// --- Structured / guaranteed drop invariants ---
+const netracell = (itemIndex.items['Entrati Lanthorn'] ?? []).find(
+  (s) => s.locationId === 'Deimos - Netracell' && (s.tags ?? []).includes('guaranteed-drop'),
+)
+if (!netracell) {
+  throw new Error('Structured invariant: Entrati Lanthorn Netracell guaranteed-drop source missing')
+}
+
+// --- Höllvania invariants ---
+const motherboardBounty = (itemIndex.items['Techrot Motherboard'] ?? []).find(
+  (s) => s.locationId.includes('Central Mall Bounty') && s.dropType === 'BountyReward',
+)
+if (!motherboardBounty) {
+  throw new Error('Höllvania invariant: Techrot Motherboard L115-120 bounty source missing')
+}
+const hollvaniaNodes = Object.values(nodeLevels.nodes).filter((n) => (n as { planet?: string }).planet === 'Höllvania')
+const untaggedHollvania = hollvaniaNodes.filter(
+  (n) => !((n as { tags?: string[] }).tags ?? []).includes('hollvania'),
+)
+if (hollvaniaNodes.length === 0 || untaggedHollvania.length > 0) {
+  throw new Error(
+    `Höllvania invariant: ${untaggedHollvania.length}/${hollvaniaNodes.length} Höllvania nodes missing the hollvania tag`,
+  )
 }
 
 console.log(`Validated index files (data version ${version})`)

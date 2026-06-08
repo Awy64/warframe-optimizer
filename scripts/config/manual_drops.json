@@ -8,5 +8,45 @@
     "baseChance": 100,
     "tadr": 20,
     "tags": ["async-night-cycle"]
+  },
+  {
+    "itemName": "Entrati Lanthorn",
+    "locationId": "Deimos - Netracell",
+    "dropType": "MissionReward",
+    "gameMode": "Netracell",
+    "rotation": "A",
+    "baseChance": 100,
+    "tadr": 1.0,
+    "tags": ["guaranteed-drop"]
+  },
+  {
+    "itemName": "Entrati Lanthorn",
+    "locationId": "Deimos - Deep Archimedea",
+    "dropType": "MissionReward",
+    "gameMode": "Deep Archimedea",
+    "rotation": "A",
+    "baseChance": 100,
+    "tadr": 0.8,
+    "tags": ["guaranteed-drop"]
+  },
+  {
+    "itemName": "Entrati Lanthorn",
+    "locationId": "Deimos - Albrecht's Laboratories",
+    "dropType": "BountyReward",
+    "gameMode": "Bounty",
+    "rotation": "Full Clear",
+    "baseChance": 100,
+    "tadr": 0.5,
+    "tags": ["guaranteed-drop", "pickup-scalable"]
+  },
+  {
+    "itemName": "Techrot Motherboard",
+    "locationId": "Höllvania - Central Mall Bounty (Level 115 - 120)",
+    "dropType": "BountyReward",
+    "gameMode": "Bounty",
+    "rotation": "Full Clear",
+    "baseChance": 100,
+    "tadr": 0.067,
+    "tags": ["guaranteed-drop", "rare-special"]
   }
 ]

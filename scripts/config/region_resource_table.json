@@ -113,5 +113,11 @@
     { "itemName": "Ferrite", "rarity": "Common" },
     { "itemName": "Voidgel Orb", "rarity": "Uncommon" },
     { "itemName": "Entrati Lanthorn", "rarity": "Rare" }
+  ],
+  "Höllvania": [
+    { "itemName": "Techrot Chitin", "rarity": "Common" },
+    { "itemName": "Efervon Sample", "rarity": "Uncommon" },
+    { "itemName": "Höllvanian Pitchweave Fragment", "rarity": "Uncommon" },
+    { "itemName": "Techrot Motherboard", "rarity": "Rare" }
   ]
 }

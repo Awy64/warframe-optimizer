@@ -1,6 +1,11 @@
 use std::collections::HashMap;
 
-use crate::boosters::{calculate_boosters, calculate_resource_booster};
+use crate::boosters::{
+    calculate_boosters, calculate_resource_booster, currency_booster_multiplier,
+    resource_pickup_multiplier, retriever_multiplier, smeeta_rare_native_yield_per_minute,
+    PayloadKind,
+};
+use crate::constants::AOE_CONTAINER_MULT;
 use crate::constants::{
     COMFORT_LEVEL_SCALE, DEFAULT_ACOLYTE_DROP_YIELD, DEFAULT_ACOLYTE_SPAWN_MINUTES,
     FRICTION_COEFF, FRICTION_EXPONENT, INTERMEDIATE_SKILL_GATE, INTERVAL_SPAWN_TAG,
@@ -152,7 +157,7 @@ pub fn calculate_item_yield(
         let yield_per_spawn = source
             .drop_yield
             .unwrap_or(DEFAULT_ACOLYTE_DROP_YIELD as f64) as f32;
-        let resource_booster = calculate_resource_booster(arsenal);
+        let resource_booster = resource_pickup_multiplier(arsenal);
         if interval <= 0.0 {
             return 0.0;
         }
@@ -163,9 +168,39 @@ pub fn calculate_item_yield(
         return atramentum_yield_per_minute(arsenal);
     }
 
+    // Currency sources (Endo / Credits / Void Traces / Kuva) store expected units/min in
+    // `tadr` and carry a currency-* tag selecting the correct booster taxonomy. Enemy-kill
+    // farms (e.g. the Vodyanoi Endo arena) additionally tag `loot-scalable` so loot frames
+    // (Nekros/Khora) multiply the yield; fixed end-of-mission/cache sources do not.
+    if let Some(currency_mult) = currency_booster_multiplier(&source.tags, arsenal) {
+        let loot = if source.tags.iter().any(|t| t == "loot-scalable") {
+            m_loot
+        } else {
+            1.0
+        };
+        return (source.tadr as f32) * currency_mult * loot;
+    }
+
+    // Guaranteed / structured drops (e.g. Entrati Lanthorn from Netracells, Deep Archimedea,
+    // Gruzzling pickups). `tadr` holds the expected units/min. End-of-mission rewards are fixed;
+    // physical pickups (Gruzzling) additionally carry `pickup-scalable` so resource boosters apply.
+    if source.tags.iter().any(|t| t == "guaranteed-drop") {
+        let mult = if source.tags.iter().any(|t| t == "pickup-scalable") {
+            resource_pickup_multiplier(arsenal)
+        } else {
+            1.0
+        };
+        return (source.tadr as f32) * mult;
+    }
+
     if source.drop_type == DropType::MapContainer {
-        let resource_booster = calculate_resource_booster(arsenal);
-        return (source.tadr as f32) * resource_booster;
+        let resource_booster = resource_pickup_multiplier(arsenal);
+        let aoe = if arsenal.has_aoe_container_frame {
+            AOE_CONTAINER_MULT
+        } else {
+            1.0
+        };
+        return (source.tadr as f32) * resource_booster * aoe;
     }
 
     let is_search = source.tags.iter().any(|t| t == "search-resource");
@@ -189,21 +224,29 @@ pub fn calculate_item_yield(
             if run_time <= 0.0 {
                 return 0.0;
             }
-            let boosters = calculate_boosters(arsenal);
+            let boosters = calculate_boosters(arsenal)
+                * retriever_multiplier(arsenal, PayloadKind::Resource);
             let p_base = (source.base_chance / 100.0) as f32;
             // Crate resources do NOT scale with m_loot (loot frames)
             return p_base / run_time * boosters;
         } else {
-            let boosters = calculate_boosters(arsenal);
+            let boosters = calculate_boosters(arsenal)
+                * retriever_multiplier(arsenal, PayloadKind::Resource);
             return (source.tadr as f32 / 100.0) * boosters;
         }
     }
 
     if source.drop_type.uses_kpm_path() {
         let kpm = calculate_kpm(skill_coeff, arsenal, source);
-        let boosters = calculate_boosters(arsenal);
+        let boosters =
+            calculate_boosters(arsenal) * retriever_multiplier(arsenal, PayloadKind::Resource);
         let p_base = (source.base_chance / 100.0) as f32;
-        kpm * p_base * m_node * m_loot * boosters
+        let mut y = kpm * p_base * m_node * m_loot * boosters;
+        // Smeeta Charm: a small EV of rare resources native to this planet (rare-native tag).
+        if source.tags.iter().any(|t| t == "rare-native") {
+            y += smeeta_rare_native_yield_per_minute(arsenal);
+        }
+        y
     } else {
         // Mission/bounty tables: TADR is percent-per-minute; convert to expected items/min.
         let resource_booster = calculate_resource_booster(arsenal);
@@ -583,6 +626,137 @@ mod tests {
         };
         let yield_val = calculate_item_yield(&source, 1.0, 2.5, 0.1, &nekros);
         assert!((yield_val - (24.0 / 14.0)).abs() < 0.001);
+    }
+
+    fn currency_source(tadr: f64, tags: &[&str]) -> DropSource {
+        DropSource {
+            location_id: "Sedna - Vodyanoi".to_string(),
+            drop_type: DropType::MissionReward,
+            game_mode: "Arena".to_string(),
+            rotation: "A".to_string(),
+            base_chance: 100.0,
+            tadr,
+            time_gate_minutes: None,
+            tags: tags.iter().map(|s| s.to_string()).collect(),
+            spawn_interval_minutes: None,
+            drop_yield: None,
+            source_entity: None,
+        }
+    }
+
+    #[test]
+    fn endo_uses_mod_drop_booster_not_resource_booster() {
+        // Resource booster must not affect Endo.
+        let resource_only = ArsenalState {
+            resource_booster_active: true,
+            ..ArsenalState::default()
+        };
+        let source = currency_source(100.0, &["currency-endo"]);
+        let y = calculate_item_yield(&source, 1.0, 1.0, 1.0, &resource_only);
+        assert!((y - 100.0).abs() < 0.001);
+
+        // Mod drop booster doubles it; Steel Path doubles again.
+        let mod_sp = ArsenalState {
+            mod_drop_chance_booster_active: true,
+            steel_path_active: true,
+            ..ArsenalState::default()
+        };
+        let y2 = calculate_item_yield(&source, 1.0, 1.0, 1.0, &mod_sp);
+        assert!((y2 - 400.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn endo_arena_scales_with_loot_frames_when_loot_scalable() {
+        let nekros = ArsenalState {
+            has_nekros: true, // m_loot passed explicitly below
+            ..ArsenalState::default()
+        };
+        let source = currency_source(100.0, &["currency-endo", "loot-scalable"]);
+        // m_loot = 2.0 should double a loot-scalable Endo arena.
+        let y = calculate_item_yield(&source, 1.0, 2.0, 1.0, &nekros);
+        assert!((y - 200.0).abs() < 0.001);
+
+        // Without the loot-scalable tag, m_loot is ignored (bounty bundle Endo).
+        let bundle = currency_source(100.0, &["currency-endo"]);
+        let y2 = calculate_item_yield(&bundle, 1.0, 2.0, 1.0, &nekros);
+        assert!((y2 - 100.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn credits_scale_with_credit_booster_and_chroma_effigy() {
+        let chroma = ArsenalState {
+            credit_booster_active: true,
+            has_chroma_effigy: true,
+            ..ArsenalState::default()
+        };
+        let source = currency_source(25000.0, &["currency-credits"]);
+        let y = calculate_item_yield(&source, 1.0, 1.0, 1.0, &chroma);
+        assert!((y - 100000.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn traces_scale_with_resource_booster_not_drop_chance() {
+        let drop_only = ArsenalState {
+            drop_chance_booster_active: true,
+            ..ArsenalState::default()
+        };
+        let source = currency_source(15.0, &["currency-traces"]);
+        // Drop chance booster does nothing to traces.
+        let y = calculate_item_yield(&source, 1.0, 1.0, 1.0, &drop_only);
+        assert!((y - 15.0).abs() < 0.001);
+
+        let resource = ArsenalState {
+            resource_booster_active: true,
+            ..ArsenalState::default()
+        };
+        let y2 = calculate_item_yield(&source, 1.0, 1.0, 1.0, &resource);
+        assert!((y2 - 30.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn guaranteed_drop_fixed_unless_pickup_scalable() {
+        let resource = ArsenalState {
+            resource_booster_active: true,
+            ..ArsenalState::default()
+        };
+        // Netracell-style fixed end-of-mission Lanthorn: resource booster does NOT apply.
+        let netracell = currency_source(0.5, &["guaranteed-drop"]);
+        let y = calculate_item_yield(&netracell, 1.0, 2.0, 1.0, &resource);
+        assert!((y - 0.5).abs() < 0.001);
+
+        // Gruzzling pickup: resource booster doubles 3 -> 6 equivalent.
+        let gruzzling = currency_source(0.5, &["guaranteed-drop", "pickup-scalable"]);
+        let y2 = calculate_item_yield(&gruzzling, 1.0, 2.0, 1.0, &resource);
+        assert!((y2 - 1.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn aoe_container_frame_boosts_map_container_yield() {
+        let xaku = ArsenalState {
+            has_aoe_container_frame: true,
+            ..ArsenalState::default()
+        };
+        let source = map_container_source(0.66, "Capture");
+        let y = calculate_item_yield(&source, 1.0, 1.0, 1.0, &xaku);
+        assert!((y - 0.66 * 1.5).abs() < 0.001);
+    }
+
+    #[test]
+    fn smeeta_adds_ev_only_to_rare_native_sources() {
+        use crate::types::Companion;
+        let smeeta = ArsenalState {
+            companion: Companion::Smeeta,
+            ..ArsenalState::default()
+        };
+        let plain = enemy_source(12.5, None, true);
+        let rare = {
+            let mut s = enemy_source(12.5, None, true);
+            s.tags.push("rare-native".to_string());
+            s
+        };
+        let y_plain = calculate_item_yield(&plain, 1.0, 1.0, 1.0, &smeeta);
+        let y_rare = calculate_item_yield(&rare, 1.0, 1.0, 1.0, &smeeta);
+        assert!(y_rare > y_plain);
     }
 
     #[test]

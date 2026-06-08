@@ -42,7 +42,7 @@ interface Scenario {
   name: string
   skill: number
   objectives: Objective[]
-  arsenal?: Record<string, boolean>
+  arsenal?: Record<string, boolean | number | string>
   checks: (ctx: ScenarioResult) => string[]
 }
 
@@ -77,6 +77,12 @@ const DEFAULT_ARSENAL = {
   hasVinquibus: false,
   dropChanceBoosterActive: false,
   resourceBoosterActive: false,
+  modDropChanceBoosterActive: false,
+  creditBoosterActive: false,
+  hasChromaEffigy: false,
+  companion: 'none',
+  retriever: 'none',
+  hasAoeContainerFrame: false,
   hasZarimanUnlocked: true,
   steelPathActive: false,
   squadSize: 4,
@@ -89,6 +95,31 @@ function parseEngineResult(raw: string): PrapaEngineResult {
   }
   return parsed
 }
+
+/** Best yield/min for a single item across all nodes under an arsenal override. */
+function bestItemYield(
+  itemName: string,
+  arsenalOverride: Record<string, boolean | number | string>,
+  skill = 0.9,
+): number {
+  const arsenal = { ...DEFAULT_ARSENAL, ...arsenalOverride }
+  const raw = compute_ranked_nodes(
+    JSON.stringify([{ itemName, targetQuantity: 100 }]),
+    skill,
+    JSON.stringify(arsenal),
+    Date.now(),
+  )
+  const { rankedNodes } = parseEngineResult(raw)
+  let best = 0
+  for (const n of rankedNodes) {
+    const y = n.matchedItems.find((m) => m.itemName === itemName)?.yItem ?? 0
+    if (y > best) best = y
+  }
+  return best
+}
+
+const traceYield = (arsenal: Record<string, boolean | number | string>) =>
+  bestItemYield('Void Traces', arsenal)
 
 const SCENARIOS: Scenario[] = [
   {
@@ -670,6 +701,126 @@ const SCENARIOS: Scenario[] = [
           : `FAIL: Starter must not be virtual entity (${path.primaryPlan.startingLocationId})`,
       )
 
+      return notes
+    },
+  },
+  {
+    id: 16,
+    name: 'Endo Booster Taxonomy (mod-drop, not resource)',
+    skill: 0.9,
+    objectives: [{ itemName: 'Endo', targetQuantity: 4000 }],
+    arsenal: {
+      steelPathActive: true,
+      modDropChanceBoosterActive: true,
+      hasNekros: true,
+      hasHighSlash: true,
+    },
+    checks: ({ find }) => {
+      const notes: string[] = []
+      const vodyanoi = find(/Vodyanoi/)
+      if (!vodyanoi) {
+        notes.push('FAIL: Vodyanoi Endo arena not ranked')
+        return notes
+      }
+      const y = vodyanoi.matchedItems.find((m) => m.itemName === 'Endo')?.yItem ?? 0
+      // base 100 × mod-drop (SP×2 × booster×2 = 4) × m_loot (Nekros+slash = 2.08) = 832.
+      notes.push(
+        Math.abs(y - 832) < 1
+          ? `PASS: Vodyanoi Endo Y=${y.toFixed(1)} (mod-drop ×4 × loot 2.08)`
+          : `FAIL: Vodyanoi Endo Y=${y.toFixed(1)} (expected ~832)`,
+      )
+      return notes
+    },
+  },
+  {
+    id: 17,
+    name: 'Void Trace resource-booster inversion',
+    skill: 0.9,
+    objectives: [{ itemName: 'Void Traces', targetQuantity: 100 }],
+    checks: ({ getItemSources }) => {
+      const notes: string[] = []
+      const sources = getItemSources('Void Traces')
+      notes.push(
+        sources.length > 0
+          ? `PASS: ${sources.length} Void Traces source(s) indexed`
+          : 'FAIL: No Void Traces sources',
+      )
+      // Drop-chance booster must be a no-op; resource booster must double yield.
+      const base = traceYield({})
+      const withDrop = traceYield({ dropChanceBoosterActive: true })
+      const withResource = traceYield({ resourceBoosterActive: true })
+      notes.push(
+        Math.abs(base - withDrop) < 1e-6
+          ? `PASS: Drop-chance booster is a no-op for Traces (Y=${base.toFixed(1)})`
+          : `FAIL: Drop booster changed Traces ${base.toFixed(1)} -> ${withDrop.toFixed(1)}`,
+      )
+      notes.push(
+        Math.abs(withResource - base * 2) < 1e-3
+          ? `PASS: Resource booster doubles Traces (${base.toFixed(1)} -> ${withResource.toFixed(1)})`
+          : `FAIL: Resource booster did not double Traces (${base.toFixed(1)} -> ${withResource.toFixed(1)})`,
+      )
+      return notes
+    },
+  },
+  {
+    id: 18,
+    name: 'Credits with Chroma Effigy',
+    skill: 0.9,
+    objectives: [{ itemName: 'Credits', targetQuantity: 1000000 }],
+    arsenal: { creditBoosterActive: true, hasChromaEffigy: true },
+    checks: ({ top10, find }) => {
+      const notes: string[] = []
+      const index = find(/The Index/)
+      notes.push(
+        top10[0]?.locationId.includes('The Index')
+          ? 'PASS: The Index is the top credit farm'
+          : `INFO: Rank 1 is ${top10[0]?.locationId}`,
+      )
+      if (index) {
+        const y = index.matchedItems.find((m) => m.itemName === 'Credits')?.yItem ?? 0
+        // base 83000 × credit booster 2 × Chroma 2 = 332000.
+        notes.push(
+          Math.abs(y - 332000) < 1
+            ? `PASS: The Index Credits Y=${y.toFixed(0)} (×2 booster × ×2 Effigy)`
+            : `FAIL: The Index Credits Y=${y.toFixed(0)} (expected 332000)`,
+        )
+      }
+      return notes
+    },
+  },
+  {
+    id: 19,
+    name: 'Entrati Lanthorn — Netracell guaranteed primary',
+    skill: 0.9,
+    objectives: [{ itemName: 'Entrati Lanthorn', targetQuantity: 10 }],
+    checks: ({ top10 }) => {
+      const notes: string[] = []
+      notes.push(
+        top10[0]?.locationId === 'Deimos - Netracell'
+          ? 'PASS: Netracell is the primary Lanthorn source'
+          : `FAIL: Rank 1 is ${top10[0]?.locationId} (expected Deimos - Netracell)`,
+      )
+      return notes
+    },
+  },
+  {
+    id: 20,
+    name: 'Techrot Motherboard — L115-120 bounty routable',
+    skill: 0.9,
+    objectives: [{ itemName: 'Techrot Motherboard', targetQuantity: 8 }],
+    checks: ({ ranked, find }) => {
+      const notes: string[] = []
+      notes.push(
+        ranked.length > 0
+          ? `PASS: ${ranked.length} routable Motherboard node(s)`
+          : 'FAIL: No routable Motherboard nodes',
+      )
+      const bounty = find(/Central Mall Bounty/)
+      notes.push(
+        bounty
+          ? `PASS: L115-120 Central Mall bounty ranked (#${ranked.indexOf(bounty) + 1})`
+          : 'FAIL: Central Mall bounty not ranked',
+      )
       return notes
     },
   },

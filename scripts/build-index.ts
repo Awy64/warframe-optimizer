@@ -3,16 +3,17 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { DropSource, ItemIndexOutput, NodeLevelsOutput, NodeMeta, SkillTier, WfcdNode } from './lib/types.js'
-import { parseBountyTier } from './lib/bounty-ev.js'
+import { parseBountyTier, parseBountyCurrencyBundles } from './lib/bounty-ev.js'
 import { buildEnemyDropSource } from './lib/enemy-drops.js'
 import { canonicalizeLocationId, dedupeAndMergeItemSources } from './lib/merge-sources.js'
-import { locationId, normalizeItemName } from './lib/normalize.js'
+import { locationId, normalizeItemName, parseItemQuantity } from './lib/normalize.js'
 import { fetchItemRarityOverrides, injectPlanetaryEnemyDrops } from './lib/planetary-drops.js'
 import { applyItemAliases } from './lib/item-aliases.js'
 import { ingestManualDrops } from './lib/manual-drops.js'
 import { propagateDescendiaTags } from './lib/propagate-tags.js'
 import { ingestRelicPrimeComponents } from './lib/sources/relics.js'
 import { ingestTransientRewards } from './lib/sources/transients.js'
+import { ingestCurrencySources } from './lib/sources/currencies.js'
 import { gameModeForMissionIndex } from './lib/game-mode.js'
 import { buildDropSource, validateIndex } from './lib/sanitize.js'
 import enemyNodeMap from './lib/enemy-node-map.json' with { type: 'json' }
@@ -24,6 +25,7 @@ import eximusItems from './config/eximus_items.json' with { type: 'json' }
 import omniaCascadeNodes from './config/omnia_cascade_nodes.json' with { type: 'json' }
 import planetaryEngine from './config/planetary_engine.json' with { type: 'json' }
 import regionResourceTable from './config/region_resource_table.json' with { type: 'json' }
+import currencySources from './config/currency_sources.json' with { type: 'json' }
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const ROOT = join(__dirname, '..')
@@ -129,7 +131,11 @@ function inferTags(nodeName: string, planet: string, locId: string): string[] {
     tags.push('descendia')
   }
   if (omniaCascadeNodes.includes(locId)) tags.push('omnia-cascade')
-  if (lower.includes('hollvania') || planet.toLowerCase().includes('hollvania')) tags.push('hollvania')
+  // Match both "Hollvania" and the umlaut WFCD systemName "Höllvania".
+  const deumlaut = (s: string) => s.toLowerCase().replace(/ö/g, 'o')
+  if (deumlaut(nodeName).includes('hollvania') || deumlaut(planet).includes('hollvania')) {
+    tags.push('hollvania')
+  }
   if (planet === 'Zariman' || locId.includes('Zariman')) tags.push('requires-zariman')
   if ((nodeMultipliers as Record<string, number>)[locId]) tags.push('dark-sector')
   return tags
@@ -175,11 +181,38 @@ function tagSteelPathSources(index: Record<string, DropSource[]>): void {
   }
 }
 
+/** Inventory currencies routed through the WASM currency-* booster taxonomy. */
+const CURRENCY_TAG_MAP: Record<string, string> = {
+  Endo: 'currency-endo',
+  Credits: 'currency-credits',
+  Credit: 'currency-credits',
+  Kuva: 'currency-kuva',
+  'Void Traces': 'currency-traces',
+  'Void Trace': 'currency-traces',
+}
+
+/**
+ * Normalize a currency drop row to "expected units/min" and tag it with the right
+ * currency-* class. Raw mission/enemy/bounty rows store `tadr` as percent-per-minute and
+ * drop their bundle quantity in the name (e.g. "4000 Endo"); convert to units/min via
+ * (tadr/100) * quantity. Rows already produced as currency sources (config / bounty bundles)
+ * carry a currency-* tag and are left untouched.
+ */
+function applyCurrencyTransform(source: DropSource, canonical: string, rawName: string): DropSource {
+  const tag = CURRENCY_TAG_MAP[canonical]
+  if (!tag) return source
+  const tags = source.tags ?? []
+  if (tags.some((t) => t.startsWith('currency-'))) return source
+  const qty = parseItemQuantity(rawName)
+  return { ...source, tadr: (source.tadr / 100) * qty, tags: [...tags, tag] }
+}
+
 function addEntry(index: Record<string, DropSource[]>, itemName: string, source: DropSource | null) {
   if (!source) return
   const canonical = normalizeItemName(itemName)
+  const tagged = applyCurrencyTransform(tagSource(source, canonical), canonical, itemName)
   if (!index[canonical]) index[canonical] = []
-  index[canonical].push(tagSource(source, canonical))
+  index[canonical].push(tagged)
 }
 
 function gameModeForNode(node: WfcdNode): string {
@@ -337,7 +370,8 @@ async function main() {
   for (const [region, data, key] of bountyRegions) {
     const tiers = (data as Record<string, Array<{ bountyLevel: string; rewards: Record<string, { itemName: string }[]> }>>)[key] ?? []
     for (const tier of tiers) {
-      for (const { itemName, source } of parseBountyTier(region, tier)) {
+      const rows = [...parseBountyTier(region, tier), ...parseBountyCurrencyBundles(region, tier)]
+      for (const { itemName, source } of rows) {
         const tagged =
           region === 'Zariman'
             ? { ...source, tags: [...(source.tags ?? []), 'requires-zariman'] }
@@ -461,6 +495,9 @@ async function main() {
 
   const manualCount = ingestManualDrops(manualDrops as import('./lib/manual-drops.js').ManualDropEntry[], addEntry, index)
   console.log(`Indexed ${manualCount} manual drop row(s)`)
+
+  const currencyCount = ingestCurrencySources(currencySources, addEntry, index)
+  console.log(`Indexed ${currencyCount} currency hero-farm source(s)`)
 
   const atramentumStripped = stripAtramentumVesperApiDrops(index)
   if (atramentumStripped > 0) {

@@ -52,6 +52,9 @@ export interface Objective {
   targetQuantity: number
 }
 
+export type Companion = 'none' | 'smeeta' | 'chesa' | 'other'
+export type Retriever = 'none' | 'loyal' | 'resourceful' | 'prosperous'
+
 export interface ArsenalState {
   hasIvara: boolean
   hasAtlas: boolean
@@ -62,6 +65,12 @@ export interface ArsenalState {
   hasVinquibus: boolean
   dropChanceBoosterActive: boolean
   resourceBoosterActive: boolean
+  modDropChanceBoosterActive: boolean
+  creditBoosterActive: boolean
+  hasChromaEffigy: boolean
+  companion: Companion
+  retriever: Retriever
+  hasAoeContainerFrame: boolean
   hasZarimanUnlocked: boolean
   steelPathActive: boolean
   squadSize: number
@@ -104,6 +113,12 @@ export const DEFAULT_ARSENAL: ArsenalState = {
   hasVinquibus: false,
   dropChanceBoosterActive: false,
   resourceBoosterActive: false,
+  modDropChanceBoosterActive: false,
+  creditBoosterActive: false,
+  hasChromaEffigy: false,
+  companion: 'none',
+  retriever: 'none',
+  hasAoeContainerFrame: false,
   hasZarimanUnlocked: true,
   steelPathActive: false,
   squadSize: 4,
@@ -122,6 +137,12 @@ export interface PrapaInput {
     hasVinquibus: boolean;
     dropChanceBoosterActive: boolean;
     resourceBoosterActive: boolean;
+    modDropChanceBoosterActive: boolean;
+    creditBoosterActive: boolean;
+    hasChromaEffigy: boolean;
+    companion: Companion;
+    retriever: Retriever;
+    hasAoeContainerFrame: boolean;
     steelPathActive: boolean;
     hasZarimanUnlocked: boolean;
     squadSize: number;

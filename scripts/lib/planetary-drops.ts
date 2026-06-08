@@ -86,13 +86,17 @@ export function injectPlanetaryEnemyDrops(
       const rarity = rarityOverrides.get(entry.itemName) ?? entry.rarity
       const baseChance = planetaryDropChancePercent(rarity, config)
 
+      const tags = ['planetary-heuristic']
+      // Rare/Legendary planet-native resources are eligible for the Smeeta Charm EV bonus.
+      if (rarity === 'Rare' || rarity === 'Legendary') tags.push('rare-native')
+
       const source = buildDropSource({
         locationId: locId,
         dropType: 'EnemyDrop',
         gameMode,
         rotation: 'A',
         baseChance,
-        tags: ['planetary-heuristic'],
+        tags,
       })
 
       if (!source) continue

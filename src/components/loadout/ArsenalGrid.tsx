@@ -1,5 +1,5 @@
 import { useOptimizerStore } from '../../stores/optimizerStore'
-import type { ArsenalState } from '../../types'
+import type { ArsenalState, Companion, Retriever } from '../../types'
 
 interface SwitchProps {
   label: string
@@ -45,6 +45,33 @@ function Section({ title, children }: { title: string; children: React.ReactNode
     <div>
       <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-tenno-muted">{title}</h3>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">{children}</div>
+    </div>
+  )
+}
+
+interface SegmentedProps<T extends string> {
+  value: T
+  options: Array<{ value: T; label: string }>
+  onChange: (value: T) => void
+}
+
+function Segmented<T extends string>({ value, options, onChange }: SegmentedProps<T>) {
+  return (
+    <div className="col-span-2 flex rounded-lg border border-tenno-border bg-tenno-panel/40 p-1">
+      {options.map((opt) => (
+        <button
+          key={opt.value}
+          type="button"
+          onClick={() => onChange(opt.value)}
+          className={`flex-1 py-1.5 text-center text-xs font-semibold uppercase tracking-wider rounded-md transition duration-200 cursor-pointer ${
+            value === opt.value
+              ? 'bg-tenno-cyan/20 text-tenno-cyan border border-tenno-cyan/40 shadow-[0_0_8px_#4ecdc433]'
+              : 'text-tenno-muted hover:text-gray-100 hover:bg-tenno-panel/20 border border-transparent'
+          }`}
+        >
+          {opt.label}
+        </button>
+      ))}
     </div>
   )
 }
@@ -136,6 +163,35 @@ export function ArsenalGrid() {
       <Section title="Weapons">
         <Switch label="High Slash" checked={arsenal.hasHighSlash} onChange={set('hasHighSlash')} />
         <Switch label="Vinquibus" checked={arsenal.hasVinquibus} onChange={set('hasVinquibus')} />
+        <Switch
+          label="AoE Container Frame"
+          checked={arsenal.hasAoeContainerFrame}
+          color="gold"
+          onChange={set('hasAoeContainerFrame')}
+        />
+      </Section>
+
+      <Section title="Companion">
+        <Segmented<Companion>
+          value={arsenal.companion}
+          onChange={(v) => setArsenal({ companion: v })}
+          options={[
+            { value: 'none', label: 'None' },
+            { value: 'smeeta', label: 'Smeeta' },
+            { value: 'chesa', label: 'Chesa' },
+            { value: 'other', label: 'Other' },
+          ]}
+        />
+        <Segmented<Retriever>
+          value={arsenal.retriever}
+          onChange={(v) => setArsenal({ retriever: v })}
+          options={[
+            { value: 'none', label: 'No Retriever' },
+            { value: 'loyal', label: 'Loyal' },
+            { value: 'resourceful', label: 'Resourceful' },
+            { value: 'prosperous', label: 'Prosperous' },
+          ]}
+        />
       </Section>
 
       <Section title="Boosters">
@@ -148,6 +204,21 @@ export function ArsenalGrid() {
           label="Resource"
           checked={arsenal.resourceBoosterActive}
           onChange={set('resourceBoosterActive')}
+        />
+        <Switch
+          label="Mod Drop Chance"
+          checked={arsenal.modDropChanceBoosterActive}
+          onChange={set('modDropChanceBoosterActive')}
+        />
+        <Switch
+          label="Credit"
+          checked={arsenal.creditBoosterActive}
+          onChange={set('creditBoosterActive')}
+        />
+        <Switch
+          label="Chroma Effigy"
+          checked={arsenal.hasChromaEffigy}
+          onChange={set('hasChromaEffigy')}
         />
       </Section>
 

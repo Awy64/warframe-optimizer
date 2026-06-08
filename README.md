@@ -46,6 +46,25 @@ Loadout Panel (30%)          Mission Board (70%)
 PRAPA scoring: `Y = KPM × P_base × M_node × M_loot × (B_drop × B_resource)`  
 Cost: `C = (1 / (Y × S_m)) × F_p` — lower is better.
 
+## Booster taxonomy
+
+The three in-game booster classes are **not interchangeable** and the engine models each separately. Conflating them is the most common modeling error, so each currency/resource routes through exactly one class:
+
+| Class | UI toggle | Doubles | Steel Path | Notable |
+|-------|-----------|---------|-----------|---------|
+| **Resource Booster** | `resourceBoosterActive` | Resource pickups, **Void Traces**, Kuva | — | Does **nothing** to Endo |
+| **Drop Chance Booster** | `dropChanceBoosterActive` | Drop *chance* of table items | ×2 on SP | Does **nothing** to Void Traces |
+| **Mod Drop Chance Booster** | `modDropChanceBoosterActive` | Mod-classified drops incl. **Endo** | ×2 on SP (+100% mod drop) | Does **nothing** to resources |
+| **Credit Booster** | `creditBoosterActive` | Credit pickups | — | Stacks ×2 with Chroma Effigy |
+
+Currency rows in the index carry a `currency-*` tag (`currency-endo`, `currency-credits`, `currency-traces`, `currency-kuva`) selecting the class at runtime. Endo arena farms (e.g. Vodyanoi) also tag `loot-scalable` so Nekros/Khora loot frames multiply them.
+
+### Companion modeling
+
+- **Smeeta Kavat** (`companion: smeeta`) — Charm adds a small EV of rare resources native to the mission planet (`rare-native` sources only).
+- **Chesa Kubrow** (`companion: chesa`) — Retrieve is in the same *loot-corpse* group as Nekros Desecrate, so they **do not stack** (the engine takes the max).
+- **Retriever mods** (`retriever`) — `loyal` (13% all), `resourceful` (18% resources + traces), `prosperous` (18% credits) apply an expected-value pickup-duplication multiplier to the matching payload class.
+
 ## Deployment
 
 GitHub Actions builds and deploys to GitHub Pages on push to `main`. Enable Pages with source "GitHub Actions" in repo settings.
